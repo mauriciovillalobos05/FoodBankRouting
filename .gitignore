@@ -23,8 +23,6 @@ ios/Pods/
 *.xcodeproj/project.xcworkspace/
 
 # Archivos de entorno / claves
-.env
-.env.*
 google-services.json
 GoogleService-Info.plist
 
@@ -38,3 +36,4 @@ yarn-error.log*
 .cache/
 .tmp/
 coverage/
+config.bat
