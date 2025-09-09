@@ -1,0 +1,127 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "20"
+  BACKEND_DIR: api
+  PWA_DIR: web-pwa
+  STAFF_DIR: web-staff
+
+jobs:
+  backend:
+    name: backend-ci
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.BACKEND_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install deps
+        run: |
+          if [ ! -f requirements.txt ]; then
+            echo "requirements.txt no encontrado en ${PWD}"; exit 1
+          fi
+          pip install -r requirements.txt
+          # Opcional: linters si los usas
+          # pip install ruff black
+
+      - name: Lint (opcional)
+        run: |
+          if command -v ruff >/dev/null 2>&1; then ruff . ; else echo "ruff no instalado"; fi
+          if command -v black >/dev/null 2>&1; then black --check . ; else echo "black no instalado"; fi
+
+      - name: Test
+        run: |
+          if [ -f pytest.ini ] || [ -d tests ]; then
+            pip install pytest
+            pytest -q
+          else
+            echo "No hay tests aún (tests/). Añádelos y esta verificación será estricta."
+          fi
+
+  web-pwa:
+    name: web-pwa-ci
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.PWA_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.PWA_DIR }}/package-lock.json
+
+      - name: Install
+        run: |
+          if [ ! -f package.json ]; then
+            echo "package.json no encontrado en ${PWD}"; exit 1
+          fi
+          npm ci
+
+      - name: Lint
+        run: |
+          if npm run | grep -q "lint"; then npm run lint; else echo "script lint no definido"; fi
+
+      - name: Test
+        run: |
+          if npm run | grep -q "test"; then npm test -- --ci --passWithNoTests; else echo "script test no definido"; fi
+
+      - name: Build
+        run: |
+          if npm run | grep -q "build"; then npm run build; else echo "script build no definido"; fi
+
+  web-staff:
+    name: web-staff-ci
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.STAFF_DIR }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.STAFF_DIR }}/package-lock.json
+
+      - name: Install
+        run: |
+          if [ ! -f package.json ]; then
+            echo "package.json no encontrado en ${PWD}"; exit 1
+          fi
+          npm ci
+
+      - name: Lint
+        run: |
+          if npm run | grep -q "lint"; then npm run lint; else echo "script lint no definido"; fi
+
+      - name: Test
+        run: |
+          if npm run | grep -q "test"; then npm test -- --ci --passWithNoTests; else echo "script test no definido"; fi
+
+      - name: Build
+        run: |
+          if npm run | grep -q "build"; then npm run build; else echo "script build no definido"; fi
