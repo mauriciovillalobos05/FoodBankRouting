@@ -1,0 +1,166 @@
+name: cd
+
+on:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      env:
+        description: "Environment to deploy (staging|production)"
+        required: false
+        type: choice
+        options: [staging, production]
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "20"
+  BACKEND_DIR: api
+  PWA_DIR: web-pwa
+  STAFF_DIR: web-staff
+
+jobs:
+  select-environment:
+    runs-on: ubuntu-latest
+    outputs:
+      env_name: ${{ steps.pick.outputs.env_name }}
+    steps:
+      - id: pick
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.env }}" ]; then
+            echo "env_name=${{ github.event.inputs.env }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "env_name=production" >> $GITHUB_OUTPUT
+          else
+            echo "env_name=staging" >> $GITHUB_OUTPUT
+          fi
+      - name: Show chosen environment
+        run: echo "Environment -> ${{ steps.pick.outputs.env_name }}"
+
+  deploy-backend:
+    needs: select-environment
+    name: deploy-backend
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ needs.select-environment.outputs.env_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Build (optional) - backend
+        working-directory: ${{ env.BACKEND_DIR }}
+        run: |
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            echo "No requirements.txt, skipping build step"
+          fi
+
+      # HOOK de despliegue (ajusta a tu plataforma)
+      - name: Deploy backend (hook)
+        env:
+          ENV_NAME: ${{ needs.select-environment.outputs.env_name }}
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          REGISTRY: ${{ secrets.REGISTRY }}
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+          BACKEND_ENV: ${{ secrets.BACKEND_ENV }}
+        run: |
+          if [ -x ./deploy/backend_deploy.sh ]; then
+            ./deploy/backend_deploy.sh "$ENV_NAME"
+          else
+            echo "No deploy/backend_deploy.sh found (executable). Add it to repo."
+            exit 1
+          fi
+
+  deploy-web-pwa:
+    needs: select-environment
+    name: deploy-web-pwa
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ needs.select-environment.outputs.env_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.PWA_DIR }}/package-lock.json
+
+      - name: Build PWA
+        working-directory: ${{ env.PWA_DIR }}
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -f package.json ]; then
+            npm ci
+            if npm run | grep -q "build"; then npm run build; else echo "No build script"; fi
+          else
+            echo "No package.json in $PWD"; exit 1
+          fi
+
+      # HOOK de despliegue (ajusta a tu hosting)
+      - name: Deploy PWA (hook)
+        env:
+          ENV_NAME: ${{ needs.select-environment.outputs.env_name }}
+        run: |
+          if [ -x ./deploy/web_pwa_deploy.sh ]; then
+            ./deploy/web_pwa_deploy.sh "$ENV_NAME"
+          else
+            echo "No deploy/web_pwa_deploy.sh found (executable). Add it to repo."
+            exit 1
+          fi
+
+  deploy-web-staff:
+    needs: select-environment
+    name: deploy-web-staff
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ needs.select-environment.outputs.env_name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.STAFF_DIR }}/package-lock.json
+
+      - name: Build Staff
+        working-directory: ${{ env.STAFF_DIR }}
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -f package.json ]; then
+            npm ci
+            if npm run | grep -q "build"; then npm run build; else echo "No build script"; fi
+          else
+            echo "No package.json in $PWD"; exit 1
+          fi
+
+      # HOOK de despliegue (ajusta a tu hosting)
+      - name: Deploy Staff (hook)
+        env:
+          ENV_NAME: ${{ needs.select-environment.outputs.env_name }}
+        run: |
+          if [ -x ./deploy/web_staff_deploy.sh ]; then
+            ./deploy/web_staff_deploy.sh "$ENV_NAME"
+          else
+            echo "No deploy/web_staff_deploy.sh found (executable). Add it to repo."
+            exit 1
+          fi
