@@ -1,0 +1,6 @@
+area/api:
+  - 'api/**'
+area/pwa:
+  - 'web-pwa/**'
+area/staff:
+  - 'web-staff/**'

@@ -1,0 +1,41 @@
+name: rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to rollback to (e.g., prod-20251022-1200-abcdef0)"
+        required: true
+        type: string
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: Deploy backend at tag
+        run: |
+          if [ -x ./deploy/backend_deploy.sh ]; then
+            ./deploy/backend_deploy.sh "production"
+          else
+            echo "Falta deploy/backend_deploy.sh"; exit 1
+          fi
+
+      - name: Deploy web-pwa at tag
+        run: |
+          if [ -x ./deploy/web_pwa_deploy.sh ]; then
+            ./deploy/web_pwa_deploy.sh "production"
+          else
+            echo "Falta deploy/web_pwa_deploy.sh"; exit 1
+          fi
+
+      - name: Deploy web-staff at tag
+        run: |
+          if [ -x ./deploy/web_staff_deploy.sh ]; then
+            ./deploy/web_staff_deploy.sh "production"
+          else
+            echo "Falta deploy/web_staff_deploy.sh"; exit 1
+          fi

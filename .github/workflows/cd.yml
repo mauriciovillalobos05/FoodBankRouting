@@ -48,6 +48,8 @@ jobs:
       name: ${{ needs.select-environment.outputs.env_name }}
     steps:
       - uses: actions/checkout@v4
+    permissions:
+      - contents: write
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -80,6 +82,13 @@ jobs:
             echo "No deploy/backend_deploy.sh found (executable). Add it to repo."
             exit 1
           fi
+      - name: Tag production release
+        if: needs.select-environment.outputs.env_name == 'production'
+        run: |
+          TS=$(date +'%Y%m%d-%H%M')
+          TAG="prod-${TS}-${GITHUB_SHA::7}"
+          git tag -a "$TAG" -m "Production deploy $GITHUB_SHA"
+          git push origin "$TAG"
 
   deploy-web-pwa:
     needs: select-environment

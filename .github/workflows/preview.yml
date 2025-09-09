@@ -1,0 +1,70 @@
+name: preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [develop]
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+  PWA_DIR: web-pwa
+  STAFF_DIR: web-staff
+
+jobs:
+  build-and-deploy-pwa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.PWA_DIR }}/package-lock.json
+      - name: Build PWA
+        working-directory: ${{ env.PWA_DIR }}
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}   # staging API
+        run: |
+          npm ci --no-audit --no-fund
+          if npm run | grep -q "build"; then npm run build; else echo "No build script"; fi
+      - name: Deploy PWA (preview)
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -x ./deploy/web_pwa_deploy.sh ]; then
+            ./deploy/web_pwa_deploy.sh "preview-${PR_NUMBER}"
+          else
+            echo "Falta deploy/web_pwa_deploy.sh"
+            exit 1
+          fi
+
+  build-and-deploy-staff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.STAFF_DIR }}/package-lock.json
+      - name: Build Staff
+        working-directory: ${{ env.STAFF_DIR }}
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}   # staging API
+        run: |
+          npm ci --no-audit --no-fund
+          if npm run | grep -q "build"; then npm run build; else echo "No build script"; fi
+      - name: Deploy Staff (preview)
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -x ./deploy/web_staff_deploy.sh ]; then
+            ./deploy/web_staff_deploy.sh "preview-${PR_NUMBER}"
+          else
+            echo "Falta deploy/web_staff_deploy.sh"
+            exit 1
+          fi

@@ -11,3 +11,4 @@ echo "[web-pwa] Deploying to $ENV_NAME"
 #   vercel deploy --prebuilt --cwd web-pwa
 # fi
 echo "[web-pwa] (placeholder) Add your hosting commands (Vercel/Netlify/S3...)"
+echo "::set-output name=url::https://preview-tu-app.example.com"

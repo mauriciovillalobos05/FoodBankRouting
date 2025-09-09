@@ -18,7 +18,33 @@ env:
   STAFF_DIR: web-staff
 
 jobs:
+  detect-changes:
+    name: detect-changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      pwa: ${{ steps.filter.outputs.pwa }}
+      staff: ${{ steps.filter.outputs.staff }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'api/**'
+              - '.github/workflows/ci.yml'
+            pwa:
+              - 'web-pwa/**'
+              - '.github/workflows/ci.yml'
+            staff:
+              - 'web-staff/**'
+              - '.github/workflows/ci.yml'
+
+jobs:
   backend:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.backend == 'true'
     name: backend-ci
     runs-on: ubuntu-latest
     defaults:
@@ -38,6 +64,7 @@ jobs:
           if [ ! -f requirements.txt ]; then
             echo "requirements.txt no encontrado en ${PWD}"; exit 1
           fi
+          python -m pip install --upgrade pip wheel
           pip install -r requirements.txt
           # Opcional: linters si los usas
           # pip install ruff black
@@ -57,6 +84,8 @@ jobs:
           fi
 
   web-pwa:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.pwa == 'true'
     name: web-pwa-ci
     runs-on: ubuntu-latest
     defaults:
@@ -77,7 +106,7 @@ jobs:
           if [ ! -f package.json ]; then
             echo "package.json no encontrado en ${PWD}"; exit 1
           fi
-          npm ci
+          npm ci --no-audit --no-fund --prefer-offline
 
       - name: Lint
         run: |
@@ -92,6 +121,8 @@ jobs:
           if npm run | grep -q "build"; then npm run build; else echo "script build no definido"; fi
 
   web-staff:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.staff == 'true'
     name: web-staff-ci
     runs-on: ubuntu-latest
     defaults:
@@ -112,7 +143,7 @@ jobs:
           if [ ! -f package.json ]; then
             echo "package.json no encontrado en ${PWD}"; exit 1
           fi
-          npm ci
+          npm ci --no-audit --no-fund --prefer-offline
 
       - name: Lint
         run: |
