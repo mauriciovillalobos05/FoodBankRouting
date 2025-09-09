@@ -194,3 +194,19 @@ Create the folder (e.g., mobile/).
 Copy an existing job in ci.yml, change its working-directory.
 
 (Optional) Mark the new job as a required check in branch protection settings.
+
+## Convenciones de commits (Conventional Commits)
+
+Formato
+
+<type>(<scope>): <subject>
+
+
+types: feat, fix, chore, docs, refactor, perf, test, build, ci, revert
+scope (opcional): api, pwa, staff, infra, etc.
+
+Ejemplos
+
+- `feat(api): add QR check-in endpoint`
+- `fix(pwa): prevent duplicate scan on offline retry`
+- `chore(ci): add path filters to speed up pipeline`
