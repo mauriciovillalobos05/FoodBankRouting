@@ -194,9 +194,3 @@ Create the folder (e.g., mobile/).
 Copy an existing job in ci.yml, change its working-directory.
 
 (Optional) Mark the new job as a required check in branch protection settings.
-
-CI Status badge (optional)
-
-Replace ORG/REPO with your org/repo:
-
-![CI](https://github.com/ORG/REPO/actions/workflows/ci.yml/badge.svg)
