@@ -33,15 +33,11 @@ jobs:
           filters: |
             backend:
               - 'api/**'
-              - '.github/workflows/ci.yml'
             pwa:
               - 'web-pwa/**'
-              - '.github/workflows/ci.yml'
             staff:
               - 'web-staff/**'
-              - '.github/workflows/ci.yml'
 
-jobs:
   backend:
     needs: detect-changes
     if: needs.detect-changes.outputs.backend == 'true'
