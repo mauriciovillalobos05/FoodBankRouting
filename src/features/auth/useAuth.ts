@@ -1,14 +1,25 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { supabase } from '@/services/supabase'
 
-type User = {
-    id: string
-}
+export function useAuth() {
+  const [user, setUser] = useState<null | any>(null)
+  const [loading, setLoading] = useState(true)
 
-export function useAuth(){
-    const [user, setUser] = useState<User | null>(null)
-    const [loading, setLoading] = useState(true)
-
-    return {
-        user, loading
+  useEffect(() => {
+    let mounted = true
+    supabase.auth.getUser().then(({ data }) => {
+      if (!mounted) return
+      setUser(data.user ?? null)
+      setLoading(false)
+    })
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setUser(session?.user ?? null)
+    })
+    return () => {
+      mounted = false
+      sub?.subscription.unsubscribe()
     }
+  }, [])
+
+  return { user, loading }
 }
