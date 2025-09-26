@@ -24,6 +24,10 @@ export default function Login() {
         email: email.trim(),
         password,
       });
+      if (!error) {
+        nav.replace("Profile");
+        return;
+      }
       if (error) {
         const msg = (error.message || "").toLowerCase();
         if (msg.includes("confirm")) {

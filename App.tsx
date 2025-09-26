@@ -1,20 +1,30 @@
 // App.tsx
+import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Linking from 'expo-linking';
 
 import RootNavigator from './src/app/RootNavigator';
-import AuthCallback, { RootStackParamList } from '@/screens/volunteer/routes/AuthCallback';
-
-const Stack = createNativeStackNavigator<RootStackParamList>();
+// Opción A (ejemplo): ./src/app/auth/login
+// import Login from './src/app/auth/login';
+// Opción B (ejemplo): ./src/app/login
+import Login from '@/screens/volunteer/auth/Login';
+import Profile from '@/screens/volunteer/tabs/Profile';
+const Stack = createNativeStackNavigator();
 
 const linking = {
   prefixes: [Linking.createURL('/'), 'foodbank://'],
   config: {
     screens: {
+      // landing por deep link: <scheme>://login
+      Login: 'login',
+      // si tienes register:
+      Register: 'register',
       AuthCallback: 'auth-callback',
-      Root: '*', // tu contenedor principal
+      Profile: 'profile',
+      // todo lo demás cae en Root (app post-login)
+      Root: '*',
     },
   },
 };
@@ -25,10 +35,12 @@ export default function App() {
       <NavigationContainer linking={linking}>
         <Stack.Navigator
           screenOptions={{ headerShown: false }}
-          initialRouteName="Root"              // arranca en Root
+          // arranca en Login como landing
+          initialRouteName="Login"
         >
+          <Stack.Screen name="Login" component={Login} />
+          <Stack.Screen name="Profile" component={Profile} />
           <Stack.Screen name="Root" component={RootNavigator} />
-          <Stack.Screen name="AuthCallback" component={AuthCallback} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
