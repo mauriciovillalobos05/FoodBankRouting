@@ -4,7 +4,7 @@ import { useAuth } from './useAuth';
 
 export function useRole() {
   const { user, loading: authLoading } = useAuth();
-  const [role, setRole] = useState<'volunteer' | 'staff' | null>(null);
+  const [role, setRole] = useState<'staff' | 'admin' | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -30,9 +30,9 @@ export function useRole() {
       if (active) {
         if (error) {
           // fallback if row doesn't exist yet; pick what makes sense for you
-          setRole('volunteer');
+          setRole('staff');
         } else {
-          setRole((data?.role as 'volunteer' | 'staff' | undefined) ?? 'volunteer');
+          setRole((data?.role as 'staff' | 'admin' | undefined) ?? 'staff');
         }
         setLoading(false);
       }

@@ -1,6 +1,6 @@
 import { View } from 'react-native'
 
-export default function StaffStack(){
+export default function AdminStack(){
     return (
         <View>
             

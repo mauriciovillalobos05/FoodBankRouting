@@ -9,10 +9,10 @@ import RootNavigator from './src/app/RootNavigator';
 // Opción A (ejemplo): ./src/app/auth/login
 // import Login from './src/app/auth/login';
 // Opción B (ejemplo): ./src/app/login
-import Login from '@/screens/volunteer/auth/Login';
-import Register from '@/screens/volunteer/auth/Register';
-import Profile from '@/screens/volunteer/tabs/Profile';
-import Verify from '@/screens/volunteer/auth/Verify';
+import Login from '@/screens/staff/auth/Login';
+import Register from '@/screens/staff/auth/Register';
+import Profile from '@/screens/staff/tabs/Profile';
+import Verify from '@/screens/staff/auth/Verify';
 const Stack = createNativeStackNavigator();
 
 const linking = {

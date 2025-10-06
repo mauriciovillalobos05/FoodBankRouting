@@ -1,4 +1,3 @@
-// @/screens/volunteer/tabs/Profile.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
@@ -16,7 +15,7 @@ type DBUser = {
   full_name: string | null;
   phone: string | null;
   created_at: string | null;
-  role: 'staff' | 'volunteer';
+  role: 'admin' | 'staff';
   location: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -28,7 +27,10 @@ type AuthUserLite = {
 };
 
 export default function Profile() {
+  const DEV_MODE = true; 
+  
   const nav = useNavigation<any>();
+
   const [authUser, setAuthUser] = useState<AuthUserLite | null>(null);
   const [dbUser, setDbUser] = useState<DBUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,9 +38,33 @@ export default function Profile() {
 
   useEffect(() => {
     let alive = true;
+
     (async () => {
       setLoading(true);
       setError(null);
+
+      // MODO DESARROLLO (sin Supabase)
+      if (DEV_MODE) {
+        const fakeAuthUser: AuthUserLite = { id: "dev-123", email: "dev@local.test" };
+        const fakeDbUser: DBUser = {
+          id: "dev-123",
+          full_name: "Developer User",
+          phone: "555-1234",
+          created_at: new Date().toISOString(),
+          role: "staff",
+          location: "Guadalajara, MX",
+          latitude: 20.6736,
+          longitude: -103.344,
+        };
+
+        if (!alive) return;
+        setAuthUser(fakeAuthUser);
+        setDbUser(fakeDbUser);
+        setLoading(false);
+        return;
+      }
+
+      // Lógica normal (solo se ejecuta si DEV_MODE es false)
       try {
         const { data: userRes, error: userErr } = await supabase.auth.getUser();
         if (userErr) throw userErr;
@@ -66,7 +92,6 @@ export default function Profile() {
 
         if (dbErr) throw dbErr;
         if (!alive) return;
-
         setDbUser((data ?? null) as DBUser | null);
       } catch (e: any) {
         console.error(e);
@@ -75,10 +100,12 @@ export default function Profile() {
         if (alive) setLoading(false);
       }
     })();
+
     return () => {
       alive = false;
     };
   }, []);
+
 
   const initials = useMemo(() => {
     const name = dbUser?.full_name ?? authUser?.email ?? '';

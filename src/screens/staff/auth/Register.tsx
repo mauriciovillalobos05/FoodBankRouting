@@ -1,4 +1,3 @@
-// src/screens/volunteer/auth/Register.tsx
 import { useState } from "react";
 import {
   View,

@@ -1,19 +1,19 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import VolunteerTabs from '../layouts/VolunteerTabs';
-import StaffStack from '../layouts/StaffStack';
-import Login from '../screens/volunteer/auth/Login';
-import Register from '../screens/volunteer/auth/Register';
-import Verify from '../screens/volunteer/auth/Verify';
-import Profile from '../screens/volunteer/tabs/Profile';
+import StaffTabs from '../layouts/StaffTabs';
+import AdminStack from '../layouts/AdminStack';
+import Login from '../screens/staff/auth/Login';
+import Register from '../screens/staff/auth/Register';
+import Verify from '../screens/staff/auth/Verify';
+import Profile from '../screens/staff/tabs/Profile';
 import { useAuth } from '../features/auth/useAuth';
 import { useRole } from '../features/auth/useRole';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
 
 type RootStackParamList = {
   Auth: undefined;
-  Volunteer: undefined;
   Staff: undefined;
+  Admin: undefined;
   Profile: undefined;
 };
 
@@ -45,21 +45,30 @@ function AuthNavigator() {
 }
 
 export default function RootNavigator() {
+  const DEV_MODE = true;
+
   const { user, loading: authLoading } = useAuth();
   const { role, loading: roleLoading } = useRole();
 
   if (authLoading || (user && roleLoading)) return <LoadingScreen />;
 
+  if (DEV_MODE) {
+    return (
+      <RootStack.Navigator screenOptions={{ headerShown: false }}>
+        <RootStack.Screen name="Staff" component={StaffTabs} />
+      </RootStack.Navigator>
+    );
+  }
   return (
     <RootStack.Navigator screenOptions={{ headerShown: false }}>
       {!user ? (
         <RootStack.Screen name="Auth" component={AuthNavigator} />
       ) : (
         <>
-          {role === 'staff' ? (
-            <RootStack.Screen name="Staff" component={StaffStack} />
+          {role === 'admin' ? (
+            <RootStack.Screen name="Admin" component={AdminStack} />
           ) : (
-            <RootStack.Screen name="Volunteer" component={VolunteerTabs} />
+            <RootStack.Screen name="Staff" component={StaffTabs} />
           )}
           <RootStack.Screen name="Profile" component={Profile} />
         </>
