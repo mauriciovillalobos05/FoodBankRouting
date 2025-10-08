@@ -1,61 +1,101 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Profile from '../screens/staff/tabs/Profile';
+import Home from '../screens/staff/tabs/Home';
+import Activity from '../screens/staff/tabs/Activity';
 
 const Tab = createBottomTabNavigator();
 
-// Componentes temporales para las tabs que están vacías
-function HomeScreen() {
-  return (
-    <View style={styles.screen}>
-      <Text style={styles.title}>Inicio</Text>
-      <Text>Pantalla de inicio (temporal)</Text>
-    </View>
-  );
-}
+// Función para renderizar los iconos de las tabs
+const TabIcon = ({ focused, iconName }: { focused: boolean; iconName: string }) => {
+  const getIconSource = () => {
+    switch (iconName) {
+      case 'home':
+        return focused 
+          ? require('../assets/home_on_icon.png')
+          : require('../assets/home_off_icon.png');
+      case 'activity':
+        return focused 
+          ? require('../assets/act_on_icon.png')
+          : require('../assets/act_off_icon.png');
+      case 'profile':
+        return focused 
+          ? require('../assets/profile_on_icon.png')
+          : require('../assets/profile_off_icon.png');
+      default:
+        return require('../assets/home_off_icon.png');
+    }
+  };
 
-function ActivityScreen() {
   return (
-    <View style={styles.screen}>
-      <Text style={styles.title}>Actividad</Text>
-      <Text>Pantalla de actividad (temporal)</Text>
-    </View>
+    <Image 
+      source={getIconSource()} 
+      style={styles.tabIcon}
+      resizeMode="contain"
+    />
   );
-}
+};
 
 export default function StaffTabs() {
   return (
-    <Tab.Navigator>
+    <Tab.Navigator
+      screenOptions={{
+        tabBarActiveTintColor: '#CE0E2D',
+        tabBarInactiveTintColor: '#5C5C60',
+        tabBarStyle: {
+          backgroundColor: '#FFFFFF',
+          borderTopWidth: 1,
+          borderTopColor: '#E0E0E0',
+          height: 60,
+          paddingBottom: 5,
+          paddingTop: 5,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '500',
+        },
+      }}
+    >
       <Tab.Screen 
         name="Home" 
-        component={HomeScreen}
-        options={{ title: 'Inicio' }}
+        component={Home}
+        options={{ 
+          title: 'Panel',
+          headerShown: false,
+          tabBarIcon: ({ focused }) => (
+            <TabIcon focused={focused} iconName="home" />
+          ),
+        }}
       />
       <Tab.Screen 
         name="Activity" 
-        component={ActivityScreen}
-        options={{ title: 'Actividad' }}
+        component={Activity}
+        options={{ 
+          title: 'Actividad',
+          headerShown: false,
+          tabBarIcon: ({ focused }) => (
+            <TabIcon focused={focused} iconName="activity" />
+          ),
+        }}
       />
       <Tab.Screen 
         name="Profile" 
         component={Profile}
-        options={{ title: 'Perfil' }}
+        options={{ 
+          title: 'Perfil',
+          tabBarIcon: ({ focused }) => (
+            <TabIcon focused={focused} iconName="profile" />
+          ),
+        }}
       />
     </Tab.Navigator>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 10,
+  tabIcon: {
+    width: 24,
+    height: 24,
   },
 });
