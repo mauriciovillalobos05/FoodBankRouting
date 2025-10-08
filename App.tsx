@@ -1,14 +1,13 @@
 // App.tsx
-import React from 'react';
+import React, { useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Linking from 'expo-linking';
 
 import RootNavigator from './src/app/RootNavigator';
-// Opción A (ejemplo): ./src/app/auth/login
-// import Login from './src/app/auth/login';
-// Opción B (ejemplo): ./src/app/login
+import SplashScreen from './src/components/ui/SplashScreen';
+
 import Login from '@/screens/staff/auth/Login';
 import Register from '@/screens/staff/auth/Register';
 import Profile from '@/screens/staff/tabs/Profile';
@@ -31,6 +30,16 @@ const linking = {
 };
 
 export default function App() {
+  const [isLoading, setIsLoading] = useState(true);
+
+  const handleSplashFinish = () => {
+    setIsLoading(false);
+  };
+
+  if (isLoading) {
+    return <SplashScreen onFinish={handleSplashFinish} />;
+  }
+
   return (
     <SafeAreaProvider>
       <NavigationContainer linking={linking}>

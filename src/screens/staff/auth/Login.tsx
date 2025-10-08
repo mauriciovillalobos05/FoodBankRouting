@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Image,
+  StyleSheet
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { supabase } from "@/services/supabase";
@@ -80,55 +82,137 @@ export default function Login() {
   // };
 
   return (
-    <View style={{ flex: 1, padding: 24, justifyContent: "center", gap: 12 }}>
-      <Text style={{ fontSize: 28, fontWeight: "700" }}>Bienvenido</Text>
-      <Text style={{ opacity: 0.7 }}>Inicia sesión para continuar</Text>
+    <View style={styles.container}>
+      <View style={styles.logoContainer}>
+        <Image 
+          source={require('../../../assets/full_logo_bda.png')} 
+          style={styles.logoImage}
+          resizeMode="contain"
+        />
+      </View>
 
-      <TextInput
-        placeholder="Correo"
-        autoCapitalize="none"
-        keyboardType="email-address"
-        value={email}
-        onChangeText={setEmail}
-        style={{ borderWidth: 1, borderRadius: 12, padding: 12 }}
-      />
-      <TextInput
-        placeholder="Contraseña"
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-        style={{ borderWidth: 1, borderRadius: 12, padding: 12 }}
-      />
+      <View style={styles.formContainer}>
+        <Text style={styles.title}>Inicia sesión</Text>
 
-      <TouchableOpacity
-        // onPress={onLogin}
-        onPress={onDummyLogin}
-        disabled={loading}
-        style={{
-          backgroundColor: "#16a34a",
-          padding: 14,
-          borderRadius: 12,
-          alignItems: "center",
-        }}
-      >
-        {loading ? (
-          <ActivityIndicator color="white" />
-        ) : (
-          <Text style={{ color: "white", fontWeight: "600" }}>Entrar</Text>
-        )}
-      </TouchableOpacity>
+        <TextInput
+          placeholder="Correo"
+          placeholderTextColor={styles.placeholder.color}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          value={email}
+          onChangeText={setEmail}
+          style={styles.input}
+        />
+        <TextInput
+          placeholder="Contraseña"
+          placeholderTextColor={styles.placeholder.color}
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+          style={styles.input}
+        />
 
-      <TouchableOpacity onPress={() => nav.navigate("Register")}>
-        <Text style={{ textAlign: "center" }}>
-          ¿No tienes cuenta? <Text style={{ fontWeight: "700" }}>Regístrate</Text>
-        </Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          onPress={onDummyLogin}
+          disabled={loading}
+          style={styles.loginButton}
+        >
+          {loading ? (
+            <ActivityIndicator color={styles.buttonText.color} />
+          ) : (
+            <Text style={styles.buttonText}>Entrar</Text>
+          )}
+        </TouchableOpacity>
 
-      {/* <TouchableOpacity onPress={onForgot}> */}
-        <Text style={{ textAlign: "center", marginTop: 8 }}>
-          ¿Olvidaste tu contraseña?
-        </Text>
-      {/* </TouchableOpacity> */}
+        <TouchableOpacity style={styles.forgotPasswordContainer}>
+          <Text style={styles.forgotPasswordText}>
+            ¿Olvidaste tu contraseña?{' '}
+            <Text style={styles.contactAdminText}>
+              Ponte en contacto con un administrador.
+            </Text>
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  logoImage: {
+    width: 250,
+    height: 170,
+    shadowColor: '#5C5C60',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  formContainer: {
+    gap: 16,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#CE0E2D',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 2,
+    borderColor: '#5C5C60',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    backgroundColor: '#FFFFFF',
+    color: '#5C5C60',
+  },
+  placeholder: {
+    color: '#5C5C60',
+  },
+  loginButton: {
+    backgroundColor: '#00953B',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 8,
+    shadowColor: '#00953B',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  forgotPasswordContainer: {
+    marginTop: 16,
+  },
+  forgotPasswordText: {
+    textAlign: 'center',
+    color: '#000000',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  contactAdminText: {
+    color: '#CE0E2D',
+    fontWeight: '600',
+  },
+});
