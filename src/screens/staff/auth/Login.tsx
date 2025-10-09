@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   StyleSheet
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { supabase } from "@/services/supabase";
+import { supabase, safeLogError } from "@/services/supabase";
 import * as Linking from "expo-linking";
 
 export default function Login() {
@@ -22,16 +22,22 @@ export default function Login() {
   const onLogin = async () => {
     try {
       setLoading(true);
+      
       const { error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
+      
       if (!error) {
-        nav.replace("Profile");
+        nav.replace("Root");
         return;
       }
+      
       if (error) {
         const msg = (error.message || "").toLowerCase();
+        
+        safeLogError('Login failed', { type: 'auth_error' });
+        
         if (msg.includes("confirm")) {
           Alert.alert(
             "Confirma tu correo",
@@ -41,43 +47,45 @@ export default function Login() {
         }
         throw error;
       }
-      // redirect con onAuthStateChange
     } catch (e: any) {
       const msg = (e?.message || "").toLowerCase();
+      
+      safeLogError('Login exception', { errorType: 'catch_block' });
+      
       if (msg.includes("invalid login") || msg.includes("invalid_grant")) {
         Alert.alert("Credenciales inválidas", "Revisa tu correo y contraseña.");
       } else {
-        Alert.alert("Error al iniciar sesión", e?.message ?? "Intenta de nuevo.");
+        Alert.alert("Error al iniciar sesión", "Intenta de nuevo.");
       }
     } finally {
       setLoading(false);
     }
   };
 
-  // Login dummy para desarrollo
-  const onDummyLogin = async () => {
-    setLoading(true);
-    // Simular delay de red
-    setTimeout(() => {
-      setLoading(false);
-      nav.navigate("Root");
-    }, 1000);
-  };
-
-  // reset password (incoming)
+  // Uncomment when implementing password reset
   // const onForgot = async () => {
-  //   if (!email) return Alert.alert("Recuperar contraseña", "Ingresa tu correo primero.");
-  //   const redirectTo = Linking.createURL("/auth-callback");
-  //   const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-  //     redirectTo,
-  //   });
-  //   if (error) {
-  //     Alert.alert("No se pudo enviar el correo", error.message);
-  //   } else {
-  //     Alert.alert(
-  //       "Revisa tu correo",
-  //       "Te enviamos un enlace para restablecer tu contraseña."
-  //     );
+  //   if (!email) {
+  //     return Alert.alert("Recuperar contraseña", "Ingresa tu correo primero.");
+  //   }
+  //   
+  //   try {
+  //     const redirectTo = Linking.createURL("/auth-callback");
+  //     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+  //       redirectTo,
+  //     });
+  //     
+  //     if (error) {
+  //       safeLogError('Password reset failed', { type: 'reset_error' });
+  //       Alert.alert("No se pudo enviar el correo", "Intenta de nuevo.");
+  //     } else {
+  //       Alert.alert(
+  //         "Revisa tu correo",
+  //         "Te enviamos un enlace para restablecer tu contraseña."
+  //       );
+  //     }
+  //   } catch (e) {
+  //     safeLogError('Password reset exception', { type: 'reset_exception' });
+  //     Alert.alert("Error", "No se pudo procesar la solicitud.");
   //   }
   // };
 
@@ -102,6 +110,8 @@ export default function Login() {
           value={email}
           onChangeText={setEmail}
           style={styles.input}
+          textContentType="emailAddress"
+          autoComplete="email"
         />
         <TextInput
           placeholder="Contraseña"
@@ -110,10 +120,12 @@ export default function Login() {
           value={password}
           onChangeText={setPassword}
           style={styles.input}
+          textContentType="password"
+          autoComplete="password"
         />
 
         <TouchableOpacity
-          onPress={onDummyLogin}
+          onPress={onLogin}
           disabled={loading}
           style={styles.loginButton}
         >
