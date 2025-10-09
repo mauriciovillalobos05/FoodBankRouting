@@ -2,9 +2,8 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import StaffTabs from '../layouts/StaffTabs';
 import AdminStack from '../layouts/AdminStack';
-import Login from '../screens/staff/auth/Login';
-import Register from '../screens/staff/auth/Register';
-import Verify from '../screens/staff/auth/Verify';
+import Login from '../screens/auth/Login';
+import Verify from '../screens/auth/Verify';
 import Profile from '../screens/staff/tabs/Profile';
 import { useAuth } from '../features/auth/useAuth';
 import { useRole } from '../features/auth/useRole';
@@ -38,7 +37,6 @@ function AuthNavigator() {
   return (
     <AuthStack.Navigator screenOptions={{ headerShown: false }} initialRouteName="Login">
       <AuthStack.Screen name="Login" component={Login} />
-      <AuthStack.Screen name="Register" component={Register} />
       <AuthStack.Screen name="Verify" component={Verify} />
     </AuthStack.Navigator>
   );

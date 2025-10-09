@@ -8,10 +8,9 @@ import * as Linking from 'expo-linking';
 import RootNavigator from './src/app/RootNavigator';
 import SplashScreen from './src/components/ui/SplashScreen';
 
-import Login from '@/screens/staff/auth/Login';
-import Register from '@/screens/staff/auth/Register';
+import Login from '@/screens/auth/Login';
 import Profile from '@/screens/staff/tabs/Profile';
-import Verify from '@/screens/staff/auth/Verify';
+import Verify from '@/screens/auth/Verify';
 const Stack = createNativeStackNavigator();
 
 const linking = {
@@ -49,7 +48,6 @@ export default function App() {
           initialRouteName="Login"
         >
           <Stack.Screen name="Login" component={Login} />
-          <Stack.Screen name="Register" component={Register} />
           <Stack.Screen name="Profile" component={Profile} />
           <Stack.Screen name="Verify" component={Profile} />
           <Stack.Screen name="Root" component={RootNavigator} />

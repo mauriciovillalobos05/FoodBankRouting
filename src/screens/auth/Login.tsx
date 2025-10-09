@@ -18,6 +18,11 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
 
   const onLogin = async () => {
     try {
@@ -85,7 +90,7 @@ export default function Login() {
     <View style={styles.container}>
       <View style={styles.logoContainer}>
         <Image 
-          source={require('../../../assets/full_logo_bda.png')} 
+          source={require('../../assets/full_logo_bda.png')} 
           style={styles.logoImage}
           resizeMode="contain"
         />
@@ -103,14 +108,38 @@ export default function Login() {
           onChangeText={setEmail}
           style={styles.input}
         />
-        <TextInput
-          placeholder="Contraseña"
-          placeholderTextColor={styles.placeholder.color}
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-          style={styles.input}
-        />
+        
+        <View style={styles.passwordContainer}>
+          <TextInput
+            placeholder="Contraseña"
+            placeholderTextColor={styles.placeholder.color}
+            secureTextEntry={!showPassword}
+            value={password}
+            onChangeText={setPassword}
+            style={styles.passwordInput}
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="password"
+            textContentType="password"
+            keyboardType="default"
+            importantForAutofill="no"
+          />
+          <TouchableOpacity 
+            style={styles.eyeButton}
+            onPress={togglePasswordVisibility}
+          >
+            {showPassword ? 
+              <Image 
+                source={require("../../assets/logo_bda.png")}
+                style={[styles.eyeImage, { opacity: 1 }]}
+              /> : 
+              <Image 
+                source={require("../../assets/logo_off_bda.png")}
+                style={[styles.eyeImage, { opacity: 0.5 }]}
+              />
+            }
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity
           onPress={onDummyLogin}
@@ -214,5 +243,30 @@ const styles = StyleSheet.create({
   contactAdminText: {
     color: '#CE0E2D',
     fontWeight: '600',
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#5C5C60',
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+  },
+  passwordInput: {
+    flex: 1,
+    padding: 16,
+    fontSize: 16,
+    color: '#5C5C60',
+  },
+  eyeButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  eyeImage: {
+    width: 24,
+    height: 24,
+    resizeMode: 'contain',
   },
 });
