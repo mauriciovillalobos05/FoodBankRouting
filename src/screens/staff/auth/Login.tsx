@@ -10,7 +10,7 @@ import {
   StyleSheet
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { supabase, safeLogError } from "@/services/supabase";
+import { supabase} from "@/services/supabase";
 import * as Linking from "expo-linking";
 
 export default function Login() {
@@ -36,7 +36,6 @@ export default function Login() {
       if (error) {
         const msg = (error.message || "").toLowerCase();
         
-        safeLogError('Login failed', { type: 'auth_error' });
         
         if (msg.includes("confirm")) {
           Alert.alert(
@@ -50,7 +49,6 @@ export default function Login() {
     } catch (e: any) {
       const msg = (e?.message || "").toLowerCase();
       
-      safeLogError('Login exception', { errorType: 'catch_block' });
       
       if (msg.includes("invalid login") || msg.includes("invalid_grant")) {
         Alert.alert("Credenciales inválidas", "Revisa tu correo y contraseña.");

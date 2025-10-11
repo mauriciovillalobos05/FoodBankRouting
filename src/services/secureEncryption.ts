@@ -24,10 +24,9 @@ async function getOrCreateEncryptionKey(): Promise<string> {
       // Store in Keychain/Keystore
       await SecureStore.setItemAsync(ENCRYPTION_KEY_NAME, keyHex);
     }
-    
     return keyHex;
   } catch (error) {
-    console.error('Failed to initialize encryption key');
+    console.error('[ENCRYPTION] ❌ Failed to initialize encryption key:', error);
     throw new Error('Encryption key initialization failed');
   }
 }
@@ -38,6 +37,7 @@ async function getOrCreateEncryptionKey(): Promise<string> {
  */
 export async function encryptPII(plaintext: string): Promise<string> {
   try {
+    
     const keyHex = await getOrCreateEncryptionKey();
     
     // Convert hex key to WordArray for CryptoJS
@@ -50,6 +50,7 @@ export async function encryptPII(plaintext: string): Promise<string> {
       .join('');
     const iv = CryptoJS.enc.Hex.parse(ivHex);
     
+    
     // Encrypt using AES-256-CBC with PKCS7 padding
     const encrypted = CryptoJS.AES.encrypt(plaintext, key, {
       iv: iv,
@@ -57,10 +58,14 @@ export async function encryptPII(plaintext: string): Promise<string> {
       padding: CryptoJS.pad.Pkcs7
     });
     
+    const ciphertextBase64 = encrypted.ciphertext.toString(CryptoJS.enc.Base64);
+    
     // Return format: iv:ciphertext (both in base64)
-    return `${ivHex}:${encrypted.ciphertext.toString(CryptoJS.enc.Base64)}`;
+    const result = `${ivHex}:${ciphertextBase64}`;
+    
+    return result;
   } catch (error) {
-    console.error('Encryption failed');
+    console.error('[ENCRYPTION] ❌ Encryption failed:', error);
     throw new Error('Failed to encrypt data');
   }
 }
@@ -70,11 +75,13 @@ export async function encryptPII(plaintext: string): Promise<string> {
  */
 export async function decryptPII(encryptedData: string): Promise<string> {
   try {
+    
     const keyHex = await getOrCreateEncryptionKey();
     
     // Parse encrypted data format: iv:ciphertext
     const parts = encryptedData.split(':');
     if (parts.length !== 2) {
+      console.error('[DECRYPTION] ❌ Invalid format - expected IV:CIPHERTEXT');
       throw new Error('Invalid encrypted data format');
     }
     
@@ -85,6 +92,7 @@ export async function decryptPII(encryptedData: string): Promise<string> {
     const key = CryptoJS.enc.Hex.parse(keyHex);
     const iv = CryptoJS.enc.Hex.parse(ivHex);
     const ciphertext = CryptoJS.enc.Base64.parse(ciphertextBase64);
+    
     
     // Create CipherParams object
     const cipherParams = CryptoJS.lib.CipherParams.create({
@@ -102,12 +110,13 @@ export async function decryptPII(encryptedData: string): Promise<string> {
     const plaintext = decrypted.toString(CryptoJS.enc.Utf8);
     
     if (!plaintext) {
+      console.error('[DECRYPTION] ❌ Decryption produced empty result');
       throw new Error('Decryption produced empty result');
     }
     
     return plaintext;
   } catch (error) {
-    console.error('Decryption failed');
+    console.error('[DECRYPTION] ❌ Decryption failed:', error);
     throw new Error('Failed to decrypt data');
   }
 }
@@ -119,7 +128,7 @@ export async function deleteEncryptionKey(): Promise<void> {
   try {
     await SecureStore.deleteItemAsync(ENCRYPTION_KEY_NAME);
   } catch (error) {
-    console.error('Failed to delete encryption key');
+    console.error('[ENCRYPTION] ❌ Failed to delete encryption key:', error);
   }
 }
 
@@ -127,8 +136,11 @@ export async function deleteEncryptionKey(): Promise<void> {
  * Generate a secure hash of data (for integrity checks)
  */
 export async function hashData(data: string): Promise<string> {
-  return await Crypto.digestStringAsync(
+  
+  const hash = await Crypto.digestStringAsync(
     Crypto.CryptoDigestAlgorithm.SHA256,
     data
   );
+  
+  return hash;
 }
