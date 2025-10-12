@@ -64,7 +64,7 @@ export default function Confirmacion({ navigation, route }: NativeStackScreenPro
 
       Alert.alert("Éxito", "Código verificado correctamente ✅");
       console.log("Sesión:", data.session);
-      navigation.navigate("Home");
+      navigation.navigate("Root");
     } catch (error: any) {
       Alert.alert("Error", error.message);
     }

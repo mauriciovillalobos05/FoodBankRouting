@@ -29,7 +29,7 @@ export default function Login() {
       });
       
       if (!error) {
-        nav.replace("Root");
+        nav.replace("Confirmacion", { email });
         return;
       }
       

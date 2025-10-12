@@ -12,6 +12,8 @@ import Login from '@/screens/staff/auth/Login';
 import Register from '@/screens/staff/auth/Register';
 import Profile from '@/screens/staff/tabs/Profile';
 import Verify from '@/screens/staff/auth/Verify';
+import Confirmacion from '@/screens/staff/auth/OTP';
+
 const Stack = createNativeStackNavigator();
 
 const linking = {
@@ -23,6 +25,7 @@ const linking = {
       Register: 'register',
       AuthCallback: 'auth-callback',
       Profile: 'profile',
+      Confirmacion: 'otp',
       // todo lo demás cae en Root (app post-login)
       Root: '*',
     },
@@ -53,6 +56,7 @@ export default function App() {
           <Stack.Screen name="Profile" component={Profile} />
           <Stack.Screen name="Verify" component={Profile} />
           <Stack.Screen name="Root" component={RootNavigator} />
+          <Stack.Screen name="Confirmacion" component={Confirmacion} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
