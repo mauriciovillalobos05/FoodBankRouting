@@ -78,7 +78,7 @@ export default function Confirmacion({ navigation, route }: NativeStackScreenPro
         onChange={setCodigo}
         onComplete={(val) => {console.log("Código completo:", val);}}
       />
-      <Button title="Continuar" onPress={handleContinue} />
+      <Button title="Continuar" onPress={handleContinue} disabled={codigo.length < 4} />
     </View>
   );
 }
