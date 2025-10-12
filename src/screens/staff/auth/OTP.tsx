@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, Button, TextInput, Alert } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { supabase } from "../../../lib/supabaseClient";
@@ -42,6 +42,11 @@ export default function Confirmacion({ navigation, route }: NativeStackScreenPro
   const email = route?.params?.email as string | undefined;
   const [codigo, setCodigo] = useState("");
 
+  useEffect(() => {
+    console.log("route.params:", route?.params);
+    console.log("email recibido en Confirmacion:", email);
+  }, [route?.params, email]);
+
   const handleContinue = async () => {
     if (!email) {
       Alert.alert("Error", "No se encontró el email. Vuelve a intentarlo.");
@@ -73,6 +78,7 @@ export default function Confirmacion({ navigation, route }: NativeStackScreenPro
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Número de confirmación</Text>
+      <Text style={styles.subtitle}>{email ? `Email: ${email}` : "No se recibió email"}</Text>
       <OTP 
         value={codigo}
         onChange={setCodigo}
