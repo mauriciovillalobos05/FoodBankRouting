@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 
+  Android Network Security Configuration
+  Place this file in your project root directory
+  
+  IMPORTANT: Replace the pin-set digests with your actual certificate pins
+  Get them by running:
+  echo | openssl s_client -servername YOUR_PROJECT.supabase.co -connect YOUR_PROJECT.supabase.co:443 2>/dev/null | openssl x509 -pubkey -noout | openssl pkey -pubin -outform der | openssl dgst -sha256 -binary | openssl enc -base64
+-->
+<network-security-config>
+  <!-- Default configuration for all domains -->
+  <base-config cleartextTrafficPermitted="false">
+    <trust-anchors>
+      <!-- Trust system certificates -->
+      <certificates src="system" />
+    </trust-anchors>
+  </base-config>
+
+  <!-- Certificate pinning for Supabase domain -->
+  <domain-config cleartextTrafficPermitted="false">
+    <!-- Your actual Supabase project domain -->
+    <domain includeSubdomains="true">ahhshjqbceckysgrhkmx.supabase.co</domain>
+    
+    <pin-set expiration="2026-12-31">
+      <!-- 
+        PRIMARY CERTIFICATE PIN 
+        Replace this with your actual certificate pin!
+        Format: sha256/BASE64_ENCODED_HASH
+      -->
+      <pin digest="sha256/o7y2J41zMtHgAsZJDXeU13tHTo2m4Br+9xBR8RdSCvY="/>
+      
+      <!-- 
+        BACKUP CERTIFICATE PIN (recommended)
+        Add intermediate or root CA certificate as backup
+      -->
+      <pin digest="sha256/o7y2J41zMtHgAsZJDXeU13tHTo2m4Br+9xBR8RdSCvY="/>
+    </pin-set>
+    
+    <trust-anchors>
+      <certificates src="system"/>
+    </trust-anchors>
+  </domain-config>
+
+  <!-- Debug configuration (only for development builds) -->
+  <debug-overrides>
+    <trust-anchors>
+      <!-- Trust user-added certificates for debugging -->
+      <certificates src="user" />
+    </trust-anchors>
+  </debug-overrides>
+</network-security-config>
