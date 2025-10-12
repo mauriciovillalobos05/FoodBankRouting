@@ -14,9 +14,10 @@ function OTP({
   onComplete?: (val: string) => void;
 }) {
   const handleChange = (text: string) => {
-    const cleaned = text.replace(/\D/g, "").slice(0, 4);
+    // permitir solo números y hasta 6 dígitos
+    const cleaned = text.replace(/\D/g, "").slice(0, 6);
     onChange(cleaned);
-    if (cleaned.length === 4) {
+    if (cleaned.length === 6) {
       onComplete?.(cleaned);
     }
   };
@@ -27,8 +28,8 @@ function OTP({
         value={value}
         onChangeText={handleChange}
         keyboardType="number-pad"
-        maxLength={4}
-        placeholder="----"
+        maxLength={6}
+        placeholder="------"
         style={styles.input}
         textContentType="oneTimeCode"
         autoFocus
@@ -69,6 +70,10 @@ export default function Confirmacion({ navigation, route }: NativeStackScreenPro
       Alert.alert("Error", "No se encontró el email. Vuelve a intentar o inicia sesión.");
       return;
     }
+    if (codigo.length < 6) {
+      Alert.alert("Error", "Debes ingresar los 6 dígitos del código.");
+      return;
+    }
     try {
       const { data, error } = await supabase.auth.verifyOtp({
         email,
@@ -96,7 +101,7 @@ export default function Confirmacion({ navigation, route }: NativeStackScreenPro
         onChange={setCodigo}
         onComplete={(val) => {console.log("Código completo:", val);}}
       />
-      <Button title="Continuar" onPress={handleContinue} disabled={codigo.length < 4} />
+      <Button title="Continuar" onPress={handleContinue} disabled={codigo.length < 6} />
     </View>
   );
 }
@@ -113,9 +118,9 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 14, color: "#666", marginBottom: 20, textAlign: "center" },
   inputContainer: { alignItems: "center", marginBottom: 20 },
   input: {
-    width: 180,
+    width: 220,
     fontSize: 28,
-    letterSpacing: 12,
+    letterSpacing: 10,
     textAlign: "center",
     padding: 8,
     borderWidth: 1,
