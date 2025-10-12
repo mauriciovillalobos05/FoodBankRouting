@@ -1,11 +1,14 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import Profile from '../screens/staff/tabs/Profile';
 import Home from '../screens/staff/tabs/Home';
 import Activity from '../screens/staff/tabs/Activity';
+import RouteConfirm from '../screens/staff/routes/RouteConfirm';
 
 const Tab = createBottomTabNavigator();
+const HomeStack = createNativeStackNavigator();
 
 // Función para renderizar los iconos de las tabs
 const TabIcon = ({ focused, iconName }: { focused: boolean; iconName: string }) => {
@@ -38,6 +41,14 @@ const TabIcon = ({ focused, iconName }: { focused: boolean; iconName: string }) 
 };
 
 export default function StaffTabs() {
+  function HomeStackNavigator() {
+    return (
+      <HomeStack.Navigator screenOptions={{ headerShown: false }}>
+        <HomeStack.Screen name="HomeMain" component={Home} />
+        <HomeStack.Screen name="RouteConfirm" component={RouteConfirm} />
+      </HomeStack.Navigator>
+    );
+  }
   return (
     <Tab.Navigator
       screenOptions={{
@@ -59,7 +70,7 @@ export default function StaffTabs() {
     >
       <Tab.Screen 
         name="Home" 
-        component={Home}
+        component={HomeStackNavigator}
         options={{ 
           title: 'Panel',
           headerShown: false,

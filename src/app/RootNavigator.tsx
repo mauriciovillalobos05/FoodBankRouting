@@ -53,7 +53,7 @@ export default function RootNavigator() {
   if (DEV_MODE) {
     return (
       <RootStack.Navigator screenOptions={{ headerShown: false }}>
-        <RootStack.Screen name="Admin" component={AdminStack} />
+        <RootStack.Screen name="Staff" component={StaffTabs} />
       </RootStack.Navigator>
     );
   }

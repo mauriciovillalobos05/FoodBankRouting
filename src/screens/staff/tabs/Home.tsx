@@ -8,6 +8,15 @@ import {
   SafeAreaView,
   Image
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+
+type HomeStackParamList = {
+  HomeMain: undefined;
+  RouteConfirm: { id?: number; location?: string } | undefined;
+};
+
+type NavigationProp = NativeStackNavigationProp<HomeStackParamList, 'HomeMain'>;
 
 const Home = () => {
   // Datos mock para el template
@@ -40,6 +49,7 @@ const Home = () => {
       action: 'Imprimir PDF',
     },
   ];
+  const navigation = useNavigation<NavigationProp>();
 
   const renderStatsCard = (title: string, value: number, color: string) => (
     <View style={[styles.statsCard, { backgroundColor: color }]}>
@@ -88,7 +98,7 @@ const Home = () => {
         </View>
 
         <View style={styles.routeActions}>
-          <TouchableOpacity style={styles.detailsButton}>
+          <TouchableOpacity style={styles.detailsButton} onPress={() => navigation.navigate('RouteConfirm', { id: ruta.id, location: ruta.location })}>
             <Text style={styles.detailsButtonText}>{ruta.type}</Text>
           </TouchableOpacity>
           
@@ -234,10 +244,9 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   locationIcon: {
-    width: 10,
-    height: 10,
-    fontSize: 4,
-    marginRight: 2,
+    width: 18,
+    height: 18,
+    marginRight: 8,
   },
   routeLocation: {
     fontSize: 14,
@@ -246,8 +255,9 @@ const styles = StyleSheet.create({
   },
   routeActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
     alignItems: 'center',
+    gap: 8,
   },
   detailsButton: {
     backgroundColor: '#5050FF',
