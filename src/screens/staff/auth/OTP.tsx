@@ -38,58 +38,52 @@ function OTP({
 }
 
 export default function Confirmacion({ navigation, route }: NativeStackScreenProps<any>) {
-  // intentar usar el email del usuario autenticado en Supabase; fallback a route.params si existe
+  // fallback a route.params.email si existe
   const [email, setEmail] = useState<string | undefined>(route?.params?.email as string | undefined);
   const [codigo, setCodigo] = useState("");
 
   useEffect(() => {
-    const loadUserEmail = async () => {
+    // Solo chequeamos si existe una sesión activa (no obliga al flujo OTP)
+    const checkSession = async () => {
       try {
-        const { data, error } = await supabase.auth.getUser();
+        const { data, error } = await supabase.auth.getSession();
         if (error) {
-          console.log("supabase.auth.getUser error:", error);
-          return;
+          console.log("supabase.auth.getSession error:", error);
         }
-        const user = data?.user;
-        if (user?.email) {
-          setEmail(user.email);
-          console.log("Email obtenido desde supabase auth:", user.email);
+        const session = data?.session;
+        if (session?.user?.email) {
+          setEmail(session.user.email);
+          console.log("Email desde sesión:", session.user.email);
         } else {
-          console.log("No hay email en el usuario supabase; fallback a route.params:", route?.params?.email);
+          console.log("Sin sesión activa, usando route.params.email:", route?.params?.email);
         }
       } catch (err) {
-        console.log("Error al obtener usuario supabase:", err);
+        console.log("Error checking session:", err);
       }
     };
-
-    loadUserEmail();
+    checkSession();
   }, [route?.params]);
 
   const handleContinue = async () => {
     if (!email) {
-      Alert.alert("Error", "No se encontró el email del usuario autenticado. Vuelve a iniciar sesión o intenta de nuevo.");
+      Alert.alert("Error", "No se encontró el email. Vuelve a intentar o inicia sesión.");
       return;
     }
-
-    if (codigo.length < 4) {
-      Alert.alert("Error", "Debes ingresar los 4 dígitos.");
-      return;
-    }
-
     try {
       const { data, error } = await supabase.auth.verifyOtp({
-        email, // email obtenido desde supabase.auth.getUser() o route.params
+        email,
         token: codigo,
         type: "email",
       });
-
+      console.log("verifyOtp result:", { data, error });
       if (error) throw error;
-
-      Alert.alert("Éxito", "Código verificado correctamente ✅");
-      console.log("Sesión:", data.session);
+      // data.session debe existir ahora
+      console.log("Sesión creada:", data?.session ?? null);
+      Alert.alert("Éxito", "Código verificado correctamente");
       navigation.navigate("Root");
-    } catch (error: any) {
-      Alert.alert("Error", error.message);
+    } catch (err: any) {
+      console.log("verifyOtp error:", err);
+      Alert.alert("Error", err?.message ?? String(err));
     }
   };
 

@@ -22,30 +22,29 @@ export default function Login() {
   const onLogin = async () => {
     try {
       setLoading(true);
-      
-      const { error } = await supabase.auth.signInWithPassword({
+
+      // Enviar OTP por email (magic link / OTP según configuración Supabase)
+      const { data, error } = await supabase.auth.signInWithOtp({
         email: email.trim(),
-        password,
       });
-      
-      if (!error) {
-        nav.replace("Confirmacion", { email });
-        return;
-      }
-      
+
+      console.log("signInWithOtp result:", { data, error });
+
       if (error) {
         const msg = (error.message || "").toLowerCase();
-        
-        
         if (msg.includes("confirm")) {
           Alert.alert(
             "Confirma tu correo",
-            "Abre el enlace del email y luego vuelve a iniciar sesión."
+            "Abre el enlace del email y luego vuelve a intentar."
           );
           return;
         }
         throw error;
       }
+
+      // Navegar a la pantalla de confirmación pasando el email
+      nav.replace("Confirmacion", { email: email.trim() });
+      return;
     } catch (e: any) {
       const msg = (e?.message || "").toLowerCase();
       
@@ -130,7 +129,7 @@ export default function Login() {
           {loading ? (
             <ActivityIndicator color={styles.buttonText.color} />
           ) : (
-            <Text style={styles.buttonText}>Entrar</Text>
+            <Text style={styles.buttonText}>Enviar código</Text>
           )}
         </TouchableOpacity>
 
