@@ -38,18 +38,36 @@ function OTP({
 }
 
 export default function Confirmacion({ navigation, route }: NativeStackScreenProps<any>) {
-  // obtener email pasado desde la pantalla anterior: navigation.navigate('Confirmacion', { email })
-  const email = route?.params?.email as string | undefined;
+  // intentar usar el email del usuario autenticado en Supabase; fallback a route.params si existe
+  const [email, setEmail] = useState<string | undefined>(route?.params?.email as string | undefined);
   const [codigo, setCodigo] = useState("");
 
   useEffect(() => {
-    console.log("route.params:", route?.params);
-    console.log("email recibido en Confirmacion:", email);
-  }, [route?.params, email]);
+    const loadUserEmail = async () => {
+      try {
+        const { data, error } = await supabase.auth.getUser();
+        if (error) {
+          console.log("supabase.auth.getUser error:", error);
+          return;
+        }
+        const user = data?.user;
+        if (user?.email) {
+          setEmail(user.email);
+          console.log("Email obtenido desde supabase auth:", user.email);
+        } else {
+          console.log("No hay email en el usuario supabase; fallback a route.params:", route?.params?.email);
+        }
+      } catch (err) {
+        console.log("Error al obtener usuario supabase:", err);
+      }
+    };
+
+    loadUserEmail();
+  }, [route?.params]);
 
   const handleContinue = async () => {
     if (!email) {
-      Alert.alert("Error", "No se encontró el email. Vuelve a intentarlo.");
+      Alert.alert("Error", "No se encontró el email del usuario autenticado. Vuelve a iniciar sesión o intenta de nuevo.");
       return;
     }
 
@@ -60,7 +78,7 @@ export default function Confirmacion({ navigation, route }: NativeStackScreenPro
 
     try {
       const { data, error } = await supabase.auth.verifyOtp({
-        email, // email inicializado desde route.params
+        email, // email obtenido desde supabase.auth.getUser() o route.params
         token: codigo,
         type: "email",
       });
