@@ -1,3 +1,5 @@
+// Ensure secure random polyfill is loaded before anything else that may need it
+import 'react-native-get-random-values';
 import { registerRootComponent } from 'expo';
 
 import App from './App';

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   StyleSheet
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { supabase } from "@/services/supabase";
+import { supabase} from "@/services/supabase";
 import * as Linking from "expo-linking";
 
 export default function Login() {
@@ -27,14 +27,14 @@ export default function Login() {
   const onLogin = async () => {
     try {
       setLoading(true);
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
-      if (!error) {
-        nav.replace("Profile");
-        return;
-      }
+
+      // Log for debugging: show whether signIn returned session data
+      console.log('signInWithPassword result:', { data, error });
+
       if (error) {
         const msg = (error.message || "").toLowerCase();
         if (msg.includes("confirm")) {
@@ -46,43 +46,60 @@ export default function Login() {
         }
         throw error;
       }
-      // redirect con onAuthStateChange
+
+      // Verify session persistence immediately
+      try {
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError || !sessionData?.session) {
+          // Session not persisted yet — show message and don't navigate
+          Alert.alert('Error de sesión', 'No se pudo persistir la sesión. Intenta de nuevo.');
+          return;
+        }
+      } catch (e) {
+        console.warn('Error verificando sesión después del login', e);
+        Alert.alert('Error de sesión', 'No se pudo verificar la sesión.');
+        return;
+      }
+
+      nav.replace("Root");
     } catch (e: any) {
       const msg = (e?.message || "").toLowerCase();
+      
+      
       if (msg.includes("invalid login") || msg.includes("invalid_grant")) {
         Alert.alert("Credenciales inválidas", "Revisa tu correo y contraseña.");
       } else {
-        Alert.alert("Error al iniciar sesión", e?.message ?? "Intenta de nuevo.");
+        Alert.alert("Error al iniciar sesión", "Intenta de nuevo.");
       }
     } finally {
       setLoading(false);
     }
   };
 
-  // Login dummy para desarrollo
-  const onDummyLogin = async () => {
-    setLoading(true);
-    // Simular delay de red
-    setTimeout(() => {
-      setLoading(false);
-      nav.navigate("Root");
-    }, 1000);
-  };
-
-  // reset password (incoming)
+  // Uncomment when implementing password reset
   // const onForgot = async () => {
-  //   if (!email) return Alert.alert("Recuperar contraseña", "Ingresa tu correo primero.");
-  //   const redirectTo = Linking.createURL("/auth-callback");
-  //   const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-  //     redirectTo,
-  //   });
-  //   if (error) {
-  //     Alert.alert("No se pudo enviar el correo", error.message);
-  //   } else {
-  //     Alert.alert(
-  //       "Revisa tu correo",
-  //       "Te enviamos un enlace para restablecer tu contraseña."
-  //     );
+  //   if (!email) {
+  //     return Alert.alert("Recuperar contraseña", "Ingresa tu correo primero.");
+  //   }
+  //   
+  //   try {
+  //     const redirectTo = Linking.createURL("/auth-callback");
+  //     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+  //       redirectTo,
+  //     });
+  //     
+  //     if (error) {
+  //       safeLogError('Password reset failed', { type: 'reset_error' });
+  //       Alert.alert("No se pudo enviar el correo", "Intenta de nuevo.");
+  //     } else {
+  //       Alert.alert(
+  //         "Revisa tu correo",
+  //         "Te enviamos un enlace para restablecer tu contraseña."
+  //       );
+  //     }
+  //   } catch (e) {
+  //     safeLogError('Password reset exception', { type: 'reset_exception' });
+  //     Alert.alert("Error", "No se pudo procesar la solicitud.");
   //   }
   // };
 
@@ -107,42 +124,22 @@ export default function Login() {
           value={email}
           onChangeText={setEmail}
           style={styles.input}
+          textContentType="emailAddress"
+          autoComplete="email"
         />
-        
-        <View style={styles.passwordContainer}>
-          <TextInput
-            placeholder="Contraseña"
-            placeholderTextColor={styles.placeholder.color}
-            secureTextEntry={!showPassword}
-            value={password}
-            onChangeText={setPassword}
-            style={styles.passwordInput}
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoComplete="password"
-            textContentType="password"
-            keyboardType="default"
-            importantForAutofill="no"
-          />
-          <TouchableOpacity 
-            style={styles.eyeButton}
-            onPress={togglePasswordVisibility}
-          >
-            {showPassword ? 
-              <Image 
-                source={require("../../assets/logo_bda.png")}
-                style={[styles.eyeImage, { opacity: 1 }]}
-              /> : 
-              <Image 
-                source={require("../../assets/logo_off_bda.png")}
-                style={[styles.eyeImage, { opacity: 0.5 }]}
-              />
-            }
-          </TouchableOpacity>
-        </View>
+        <TextInput
+          placeholder="Contraseña"
+          placeholderTextColor={styles.placeholder.color}
+          secureTextEntry
+          value={password}
+          onChangeText={setPassword}
+          style={styles.input}
+          textContentType="password"
+          autoComplete="password"
+        />
 
         <TouchableOpacity
-          onPress={onDummyLogin}
+          onPress={onLogin}
           disabled={loading}
           style={styles.loginButton}
         >

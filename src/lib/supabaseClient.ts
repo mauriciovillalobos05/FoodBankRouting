@@ -1,20 +1,6 @@
-// @/lib/supabaseClient.ts
-import 'react-native-url-polyfill/auto';
-import { createClient } from '@supabase/supabase-js';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// Lightweight re-export of the central supabase client.
+// This file previously created a separate client which caused session/storage
+// inconsistencies. We now re-export the client from the canonical
+// `src/services/supabase.ts` so all imports reference the same instance.
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL as string;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY as string;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('[runtime not ready]: Supabase URL y Anon Key son requeridos');
-}
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    storage: AsyncStorage,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false, // RN no usa URLs del navegador
-  },
-});
+export { supabase } from '@/services/supabase';
