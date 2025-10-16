@@ -11,9 +11,19 @@ export interface Route {
   end_time?: string;
 }
 
-interface RouteWithStatus extends Route {
-  status: 'Pendiente' | 'En curso' | 'Finalizada';
-  participant_id?: string;
+export interface RouteWithStatus {
+  id: string;
+  name: string;
+  description?: string;
+  route_date: string;
+  start_time?: string;  // Changed: removed | null
+  end_time?: string;    // Changed: removed | null
+  status: "Pendiente" | "En curso" | "Finalizada";
+  participants?: Array<{
+    id: string;
+    user_id?: string | null;
+    assigned_at?: string | null;
+  }>;
 }
 
 interface RoutesCacheData {

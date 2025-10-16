@@ -67,7 +67,6 @@ const Activity = () => {
         .from('route_participants')
         .select(`
           id,
-          role,
           assigned_at,
           routes (
             id,
@@ -190,7 +189,6 @@ const Activity = () => {
 
       {route.name && route.description ? (
         <>
-          <Text style={styles.routeName}>{route.name}</Text>
           <Text style={styles.routeDesc} numberOfLines={2}>{route.description}</Text>
         </>
       ) : null}

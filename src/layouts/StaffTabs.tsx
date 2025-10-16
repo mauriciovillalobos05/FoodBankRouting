@@ -45,6 +45,7 @@ export default function StaffTabs() {
     return (
       <HomeStack.Navigator screenOptions={{ headerShown: false }}>
         <HomeStack.Screen name="HomeMain" component={Home} />
+        <HomeStack.Screen name="Profile" component={Profile} />
         <HomeStack.Screen name="RouteConfirm" component={RouteConfirm} />
       </HomeStack.Navigator>
     );

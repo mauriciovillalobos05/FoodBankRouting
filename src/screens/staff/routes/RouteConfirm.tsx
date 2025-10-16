@@ -1,22 +1,30 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-// Use the legacy API to keep readAsStringAsync available until we migrate to the new File/Directory API
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import CryptoJS from 'crypto-js';
 import { Buffer } from 'buffer';
 import { supabase, safeLogError } from '@/services/supabase';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
+type Status = 'Pendiente' | 'En curso' | 'Finalizada' | undefined;
+
 type RootStackParamList = {
-  RouteConfirm: { id?: string; location?: string; status?: 'Pendiente' | 'En curso' | 'Finalizada'; participant_id?: string } | undefined;
+  RouteConfirm: { id?: string; location?: string; status?: Status; participant_id?: string } | undefined;
 };
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RouteConfirm'>;
 
+interface Evidence {
+  id: string;
+  path: string | null;
+  notes: string | null;
+  uploaded_at: string | null;
+}
+
 export default function RouteConfirm({ route, navigation }: Props) {
   const { id, location } = route.params || {};
-  const status = (route.params as any)?.status as 'Pendiente' | 'En curso' | 'Finalizada' | undefined;
+  const status = (route.params as any)?.status as Status;
   const participantIdParam = (route.params as any)?.participant_id as string | undefined;
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
@@ -24,15 +32,72 @@ export default function RouteConfirm({ route, navigation }: Props) {
   const [uploadedPath, setUploadedPath] = useState<string | null>(null);
   const [routeName, setRouteName] = useState<string | undefined>(location);
   const [loadingRoute, setLoadingRoute] = useState(false);
-  const [isRegistered, setIsRegistered] = useState<boolean | null>(null); // null = unknown
+  const [isRegistered, setIsRegistered] = useState<boolean | null>(null);
   const [participantId, setParticipantId] = useState<string | null>(participantIdParam ?? null);
   const [routeDetails, setRouteDetails] = useState<{ route_date?: string; start_time?: string | null; end_time?: string | null } | null>(null);
+  const [evidences, setEvidences] = useState<Evidence[]>([]);
+  const [loadingEvidences, setLoadingEvidences] = useState(false);
+  const [evidenceImages, setEvidenceImages] = useState<{ [key: string]: string }>({});
 
-  // NOTE about security: For a secure production setup you should NOT hardcode a symmetric key
-  // on the client. The recommended approach is to fetch the admin's public key from a secure
-  // endpoint and encrypt a generated AES key with that public key (so only admin can decrypt it).
-  // Below we use an env variable as a demo placeholder. Please implement proper key management.
   const CLIENT_SIDE_ENCRYPTION_KEY = process.env.EXPO_PUBLIC_CLIENT_ENCRYPTION_KEY || 'demo-client-key-please-change';
+
+  // Load evidences for finalized routes
+  const loadEvidences = React.useCallback(async () => {
+    if (!id || status !== 'Finalizada') return;
+    
+    try {
+      setLoadingEvidences(true);
+      const { data, error } = await supabase
+        .from('evidences')
+        .select('id, path, notes, uploaded_at')
+        .eq('route_id', String(id))
+        .order('uploaded_at', { ascending: false });
+
+      if (error) {
+        console.warn('Error loading evidences:', error);
+        return;
+      }
+
+      setEvidences(data || []);
+
+      // Load images from storage
+      if (data && data.length > 0) {
+        const imageUrls: { [key: string]: string } = {};
+        
+        for (const evidence of data) {
+          if (evidence.path) {
+            try {
+              const { data: fileData, error: downloadError } = await supabase.storage
+                .from('evidences')
+                .download(evidence.path);
+
+              if (downloadError) {
+                console.warn('Error downloading evidence:', downloadError);
+                continue;
+              }
+
+              const encryptedText = await new Response(fileData).text();
+              const decryptedBytes = CryptoJS.AES.decrypt(encryptedText, CLIENT_SIDE_ENCRYPTION_KEY);
+              const decryptedBase64 = decryptedBytes.toString(CryptoJS.enc.Utf8);
+
+              if (decryptedBase64) {
+                const imageUri = `data:image/jpeg;base64,${decryptedBase64}`;
+                imageUrls[evidence.id] = imageUri;
+              }
+            } catch (err) {
+              console.warn('Error processing evidence image:', err);
+            }
+          }
+        }
+        
+        setEvidenceImages(imageUrls);
+      }
+    } catch (err) {
+      console.error('Error loading evidences:', err);
+    } finally {
+      setLoadingEvidences(false);
+    }
+  }, [id, status, CLIENT_SIDE_ENCRYPTION_KEY]);
 
   const pickImageAndUpload = async () => {
     if (status === 'Finalizada') {
@@ -40,8 +105,8 @@ export default function RouteConfirm({ route, navigation }: Props) {
       return;
     }
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (permissionResult.status !== 'granted') {
         Alert.alert('Permiso denegado', 'Necesitamos acceso a la galería para subir evidencias.');
         return;
       }
@@ -52,12 +117,10 @@ export default function RouteConfirm({ route, navigation }: Props) {
         base64: false,
       });
 
-      // Newer expo-image-picker returns { canceled: boolean, assets?: [{ uri, ... }] }
       if ('canceled' in result && result.canceled) return;
       const uri = Array.isArray((result as any).assets) ? (result as any).assets[0]?.uri : undefined;
       if (!uri) return;
       setSelectedImage(uri);
-      // encrypt and upload
       await encryptAndUpload(uri);
     } catch (err) {
       console.error('pickImage error', err);
@@ -68,17 +131,10 @@ export default function RouteConfirm({ route, navigation }: Props) {
   async function encryptAndUpload(uri: string) {
     setUploading(true);
     try {
-      // Read file as base64
-  const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
-
-      // Encrypt the base64 string with AES (demo). See note above about key management.
+      const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' });
       const cipherText = CryptoJS.AES.encrypt(base64, CLIENT_SIDE_ENCRYPTION_KEY).toString();
-
-      // Create a Buffer from the ciphertext for upload (React Native environment)
-      // Buffer is installed as dependency and works as a binary container for supabase-js
       const fileData = Buffer.from(cipherText, 'utf8');
 
-      // Upload to Supabase Storage (bucket must exist and allow uploads from client)
       const safeId = id ? String(id) : 'unknown';
       const filePath = `evidences/route_${safeId}_${Date.now()}.enc`;
       const { data: uploadData, error: uploadError } = await supabase.storage
@@ -92,7 +148,6 @@ export default function RouteConfirm({ route, navigation }: Props) {
         return;
       }
 
-      // Save the uploaded path locally. Metadata (notes) will be posted when user finalizes the route.
       setUploadedPath(filePath);
       Alert.alert('Éxito', 'Evidencia subida (cifrada).');
     } catch (err) {
@@ -104,17 +159,15 @@ export default function RouteConfirm({ route, navigation }: Props) {
   }
 
   async function finalizeRoute() {
-    // Only post notes and metadata when user finalizes the route
     try {
       if (status === 'Finalizada') {
-        // already finalized; nothing to do
-        navigation.goBack();
+        // ya estaba finalizada; vamos a Home en lugar de goBack
+        (navigation as any).navigate('Home');
         return;
       }
-      // If there's an uploaded file path, insert metadata linking it to the route along with notes
+      
       if (!uploadedPath && !notes) {
-        // nothing to save
-        navigation.goBack();
+        (navigation as any).navigate('Home');
         return;
       }
 
@@ -125,50 +178,40 @@ export default function RouteConfirm({ route, navigation }: Props) {
       };
       if (uploadedPath) payload.path = uploadedPath;
 
-      // Attach participant_id and created_by when possible
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          // store uploader's user id in `created_by` for audit (table does not have `user_id` column)
           payload.created_by = user.id;
 
-          // If we already have a participantId, verify it refers to a participant row for this route.
           if (participantId) {
             try {
               const { data: rpCheck } = await supabase.from('route_participants').select('id, route_id, user_id').eq('id', participantId).maybeSingle();
-              // If rpCheck exists and route_id matches current route, keep it. Otherwise try to lookup by route_id+user
               if (!rpCheck || String(rpCheck.route_id) !== String(id)) {
                 const { data: foundParticipant } = await supabase.from('route_participants').select('id').eq('route_id', id).eq('user_id', user.id).limit(1).maybeSingle();
                 if (foundParticipant && (foundParticipant as any).id) payload.participant_id = (foundParticipant as any).id;
                 else {
-                  // participantId appears invalid for this route; drop it so we don't store a route id mistakenly
                   delete payload.participant_id;
                 }
               } else {
                 payload.participant_id = participantId;
               }
             } catch (e) {
-              // fallback: try to find participant row by route+user
               const { data: foundParticipant } = await supabase.from('route_participants').select('id').eq('route_id', id).eq('user_id', user.id).limit(1).maybeSingle();
               if (foundParticipant && (foundParticipant as any).id) payload.participant_id = (foundParticipant as any).id;
             }
           } else if (id) {
-            // try to find participant row for this user and route
             const { data: foundParticipant } = await supabase.from('route_participants').select('id').eq('route_id', id).eq('user_id', user.id).limit(1).maybeSingle();
             if (foundParticipant && (foundParticipant as any).id) payload.participant_id = (foundParticipant as any).id;
           }
         }
       } catch (e) {
-        // don't block on this failing; metadata is optional
         console.warn('Could not resolve current user for evidence metadata', e);
       }
 
-      // Try to insert evidence metadata if the table exists. If it doesn't, continue to finalize the route anyways.
       try {
         const { error } = await supabase.from('evidences').insert([payload]);
         if (error) {
           console.warn('Could not insert evidence metadata', error);
-          // don't block finalization on metadata insert failure
           Alert.alert('Advertencia', 'No se pudo guardar la metadata, pero la evidencia puede estar subida. Se procederá a finalizar la ruta.');
         } else {
           Alert.alert('Ruta finalizada', 'Notas y evidencias registradas.');
@@ -177,10 +220,8 @@ export default function RouteConfirm({ route, navigation }: Props) {
         console.warn('evidences insert exception, continuing to finalize', e);
       }
 
-      // Mark route as finalized by setting end_time to current time (server/local formatted HH:MM:SS)
       try {
         if (id) {
-          // format time as HH:MM:SS
           const now = new Date();
           const hh = String(now.getHours()).padStart(2, '0');
           const mm = String(now.getMinutes()).padStart(2, '0');
@@ -195,18 +236,19 @@ export default function RouteConfirm({ route, navigation }: Props) {
         console.warn('Error setting route end_time', e);
       }
 
-      navigation.goBack();
+      // Después de finalizar, ir a la tab Home
+      (navigation as any).navigate('Home');
     } catch (err) {
       console.error('finalizeRoute error', err);
       Alert.alert('Error', 'No se pudo finalizar la ruta.');
     }
   }
 
-  // Load route name from DB if we don't have it in params
+  // Load route details
   React.useEffect(() => {
     let mounted = true;
     (async () => {
-      if (!id || location) return; // already have name or no id
+      if (!id || location) return;
       try {
         setLoadingRoute(true);
         const { data, error } = await supabase.from('routes').select('name, route_date, start_time, end_time').eq('id', String(id)).single();
@@ -225,7 +267,14 @@ export default function RouteConfirm({ route, navigation }: Props) {
     return () => { mounted = false; };
   }, [id, location]);
 
-  // Check whether current user is registered for this route
+  // Load evidences when route is finalized
+  React.useEffect(() => {
+    if (status === 'Finalizada') {
+      loadEvidences();
+    }
+  }, [status, loadEvidences]);
+
+  // Check registration status
   React.useEffect(() => {
     let mounted = true;
     (async () => {
@@ -236,7 +285,6 @@ export default function RouteConfirm({ route, navigation }: Props) {
           return;
         }
 
-        // If participant id was passed, inspect that row
         if (participantIdParam) {
           const { data: rp, error: rpError } = await supabase.from('route_participants').select('id, user_id').eq('id', participantIdParam).single();
           if (!rp || rpError) {
@@ -250,7 +298,6 @@ export default function RouteConfirm({ route, navigation }: Props) {
           return;
         }
 
-        // Otherwise, look for a participant row for this user and route
         const { data: found, error: findError } = await supabase.from('route_participants').select('id, user_id').eq('route_id', id).eq('user_id', user.id).single();
         if (found && !findError) {
           if (mounted) {
@@ -268,7 +315,6 @@ export default function RouteConfirm({ route, navigation }: Props) {
     return () => { mounted = false; };
   }, [id, participantIdParam]);
 
-  // Handler to register the current user for the route
   const handleRegisterForRoute = async () => {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser();
@@ -295,7 +341,23 @@ export default function RouteConfirm({ route, navigation }: Props) {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Ruta {routeName ? `[${routeName}]` : (location ? `[${location}]` : (id ? `[${id}]` : ''))}</Text>
+      {/* Botón universal: flecha atrás -> Tab Home */}
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={() => (navigation as any).navigate('HomeMain')}
+      >
+        <Text style={styles.backIcon}>‹</Text>
+      </TouchableOpacity>
+
+      <Text style={styles.title}>
+        {routeName 
+          ? `Ruta: ${routeName}` 
+          : location 
+            ? `Ruta: ${location}` 
+            : id 
+              ? `Ruta [${id}]` 
+              : 'Ruta'}
+      </Text>
 
       <View style={styles.mapPlaceholder}>
         <Image
@@ -312,70 +374,150 @@ export default function RouteConfirm({ route, navigation }: Props) {
       )}
 
       <Text style={styles.sectionTitle}>Evidencias</Text>
-      <View style={styles.evidenceBox}>
-        {selectedImage ? (
-          <Image source={{ uri: selectedImage }} style={styles.evidenceImage} />
-        ) : (
-          <Image source={require('../../../assets/location_icon.png')} style={styles.photo} />
-        )}
-      </View>
-
+      
       {status === 'Finalizada' ? (
-        <View style={{ padding: 12, backgroundColor: '#FFF', borderRadius: 8, marginTop: 8 }}>
-          <Text>Ruta finalizada — solo se permiten ver detalles.</Text>
-        </View>
+        loadingEvidences ? (
+          <ActivityIndicator style={{ marginVertical: 20 }} />
+        ) : evidences.length > 0 ? (
+          <View style={styles.evidencesContainer}>
+            {evidences.map((evidence) => (
+              <View key={evidence.id} style={styles.evidenceCard}>
+                {evidenceImages[evidence.id] ? (
+                  <Image 
+                    source={{ uri: evidenceImages[evidence.id] }} 
+                    style={styles.evidenceImageLarge}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={styles.evidenceBox}>
+                    <ActivityIndicator />
+                  </View>
+                )}
+                {evidence.uploaded_at && (
+                  <Text style={styles.evidenceDate}>
+                    Subida: {new Date(evidence.uploaded_at).toLocaleString('es-MX')}
+                  </Text>
+                )}
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.evidenceBox}>
+            <Image source={require('../../../assets/location_icon.png')} style={styles.photo} />
+            <Text style={styles.noEvidenceText}>No hay evidencias</Text>
+          </View>
+        )
       ) : (
-        // If registration status unknown, show nothing; if not registered, show register button; otherwise show upload
+        <View style={styles.evidenceBox}>
+          {selectedImage ? (
+            <Image source={{ uri: selectedImage }} style={styles.evidenceImage} />
+          ) : (
+            <Image source={require('../../../assets/location_icon.png')} style={styles.photo} />
+          )}
+        </View>
+      )}
+
+      {status !== 'Finalizada' && (
         (isRegistered === null) ? null : (!isRegistered ? (
           <TouchableOpacity style={[styles.uploadBtn, { backgroundColor: '#5050FF' }]} onPress={handleRegisterForRoute}>
             <Text style={styles.actionBtnText}>Registrarse para ruta</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity style={[styles.uploadBtn, { backgroundColor: '#CE0E2D' }]} onPress={pickImageAndUpload}>
-            <Text style={styles.actionBtnText}>Subir evidencia</Text>
+            <Text style={styles.actionBtnText}>Subir Foto</Text>
           </TouchableOpacity>
         ))
       )}
 
       <Text style={styles.sectionTitle}>Notas sobre tu ruta</Text>
-      <TextInput
-        value={notes}
-        onChangeText={setNotes}
-        placeholder="Escribe alguna observación sobre la ruta"
-        style={[styles.notesInput, status === 'Finalizada' ? styles.notesInputDisabled : undefined]}
-        multiline
-        editable={status !== 'Finalizada'}
-      />
-      {status !== 'Finalizada' && uploading && <ActivityIndicator style={{ marginTop: 12 }} />}
+      
+      {status === 'Finalizada' ? (
+        evidences.length > 0 ? (
+          <View style={styles.notesContainer}>
+            {evidences.map((evidence) => (
+              evidence.notes ? (
+                <View key={evidence.id} style={styles.noteCard}>
+                  <Text style={styles.noteText}>{evidence.notes}</Text>
+                  {evidence.uploaded_at && (
+                    <Text style={styles.noteDate}>
+                      {new Date(evidence.uploaded_at).toLocaleDateString('es-MX')}
+                    </Text>
+                  )}
+                </View>
+              ) : null
+            ))}
+            {evidences.every(e => !e.notes) && (
+              <View style={styles.noteCard}>
+                <Text style={styles.noNotesText}>No hay notas registradas</Text>
+              </View>
+            )}
+          </View>
+        ) : (
+          <View style={styles.noteCard}>
+            <Text style={styles.noNotesText}>No hay notas registradas</Text>
+          </View>
+        )
+      ) : (
+        <TextInput
+          value={notes}
+          onChangeText={setNotes}
+          placeholder="Escribe alguna observación sobre la ruta"
+          style={styles.notesInput}
+          multiline
+          editable={(status as string) !== 'Finalizada'}
+        />
+      )}
+
+      {status === 'Finalizada' && (
+        <View style={styles.finalizedBanner}>
+          <Text style={styles.finalizedText}>Ruta finalizada — solo se permiten ver detalles.</Text>
+        </View>
+      )}
+
+      {uploading && <ActivityIndicator style={{ marginTop: 12 }} />}
 
       {status !== 'Finalizada' ? (
         (isRegistered === null) ? null : (!isRegistered ? (
           <TouchableOpacity style={[styles.finishButton, { backgroundColor: '#999' }]} onPress={() => Alert.alert('Registro requerido', 'Regístrate en la ruta para poder finalizarla.') }>
-            <Text style={styles.finishButtonText}>Finalizar ruta</Text>
+            <Text style={styles.finishButtonText}>Subir Evidencia & Finalizar</Text>
           </TouchableOpacity>
         ) : (
           <TouchableOpacity style={styles.finishButton} onPress={async () => {
             await finalizeRoute();
           }}>
-            <Text style={styles.finishButtonText}>Finalizar ruta</Text>
+            <Text style={styles.finishButtonText}>Subir Evidencia & Finalizar</Text>
           </TouchableOpacity>
         ))
-      ) : (
-        <TouchableOpacity style={[styles.finishButton, { backgroundColor: '#999' }]} onPress={() => navigation.goBack()}>
-          <Text style={styles.finishButtonText}>Cerrar</Text>
-        </TouchableOpacity>
-      )}
+      ) : null /* removido el botón "Cerrar" aquí: ahora se usa la flecha superior para volver a Home */}
     </ScrollView>
   );
 }
-
-async function noop() { return; }
 
 const styles = StyleSheet.create({
   container: {
     padding: 16,
     backgroundColor: '#F5F5F5',
     flexGrow: 1,
+  },
+  backButton: {
+  width: 40,
+  height: 40,
+  borderRadius: 20,
+  backgroundColor: '#FFFFFF',
+  alignItems: 'center',
+  justifyContent: 'center',
+  // sombra sutil
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 1 },
+  shadowOpacity: 0.08,
+  shadowRadius: 2,
+  elevation: 2,
+  marginTop: 16,   // <- más espacio arriba
+  marginBottom: 8,
+},
+  backIcon: {
+    fontSize: 24,
+    color: '#222',
   },
   title: {
     fontSize: 20,
@@ -402,7 +544,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 8,
-    padding:8
+    marginTop: 12,
+    padding: 8
   },
   evidenceBox: {
     backgroundColor: '#fff',
@@ -422,7 +565,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 24,
     alignItems: 'center',
-    marginTop: 'auto',
+    marginTop: 16,
   },
   finishButtonText: {
     color: '#fff',
@@ -437,24 +580,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 8,
     padding: 12,
-    minHeight: 44,
+    minHeight: 100,
     textAlignVertical: 'top',
     marginBottom: 12,
-  },
-  notesInputDisabled: {
-    backgroundColor: '#f0f0f0',
-    color: '#8a8a8a',
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  actionBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 24,
-    alignItems: 'center',
   },
   actionBtnText: {
     color: '#fff',
@@ -465,5 +593,76 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     alignItems: 'center',
     marginTop: 8,
+  },
+  evidencesContainer: {
+    gap: 16,
+    marginBottom: 16,
+  },
+  evidenceCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  evidenceImageLarge: {
+    width: '100%',
+    height: 250,
+  },
+  evidenceDate: {
+    padding: 12,
+    fontSize: 12,
+    color: '#666',
+  },
+  noEvidenceText: {
+    marginTop: 8,
+    color: '#999',
+    fontSize: 14,
+  },
+  notesContainer: {
+    gap: 12,
+    marginBottom: 16,
+  },
+  noteCard: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  noteText: {
+    fontSize: 14,
+    color: '#333',
+    lineHeight: 20,
+  },
+  noteDate: {
+    fontSize: 11,
+    color: '#999',
+    marginTop: 8,
+  },
+  noNotesText: {
+    fontSize: 14,
+    color: '#999',
+    fontStyle: 'italic',
+  },
+  finalizedBanner: {
+    padding: 12,
+    backgroundColor: '#E8F5E8',
+    borderRadius: 8,
+    marginTop: 8,
+    marginBottom: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#00953B',
+  },
+  finalizedText: {
+    color: '#00953B',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
