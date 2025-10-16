@@ -11,6 +11,11 @@ import SplashScreen from './src/components/ui/SplashScreen';
 import Login from '@/screens/auth/Login';
 import Profile from '@/screens/staff/tabs/Profile';
 import Verify from '@/screens/auth/Verify';
+import HomeAdmin from '@/screens/admin/admin_functions/staff_assign/HomeAdmin';
+import UsuariosAdmin from '@/screens/admin/admin_functions/staff_assign/usuariosAdmin';
+import StaffRegisterDetails from '@/screens/admin/admin_functions/staff_assign/StaffRegisterDetails';
+import StaffManagement from '@/screens/admin/admin_functions/staff_assign/StaffManagement';
+
 const Stack = createNativeStackNavigator();
 
 const linking = {
@@ -51,6 +56,10 @@ export default function App() {
           <Stack.Screen name="Profile" component={Profile} />
           <Stack.Screen name="Verify" component={Profile} />
           <Stack.Screen name="Root" component={RootNavigator} />
+          <Stack.Screen name="HomeAdmin" component={HomeAdmin} />
+          <Stack.Screen name="UsuariosAdmin" component={UsuariosAdmin} />
+          <Stack.Screen name="StaffRegisterDetails" component={StaffRegisterDetails} />
+          <Stack.Screen name="StaffManagement" component={StaffManagement} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
