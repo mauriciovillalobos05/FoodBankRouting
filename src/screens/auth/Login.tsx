@@ -142,7 +142,7 @@ export default function Login() {
         </View>
 
         <TouchableOpacity
-          onPress={onDummyLogin}
+          onPress={onLogin}
           disabled={loading}
           style={styles.loginButton}
         >

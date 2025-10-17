@@ -143,7 +143,7 @@ const Home = ({navigation}: any) => {
           
           <TouchableOpacity 
           style={styles.manageRoutesButton}
-          onPress={() => navigation.navigate('')} // Aqui va el de routeManagement
+          onPress={() => navigation.navigate('RouteManagement')} // Aqui va el de routeManagement
           >
             <Text style={styles.manageRoutesButtonText}>Administrar Rutas</Text>
           </TouchableOpacity>

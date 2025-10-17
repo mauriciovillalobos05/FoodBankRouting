@@ -18,6 +18,7 @@ import StaffRegisterDetails from '@/screens/admin/admin_functions/staff_assign/S
 import StaffManagement from '@/screens/admin/admin_functions/staff_assign/StaffManagement';
 import RouteDetails from '@/screens/admin/admin_functions/routes/RouteDetails';
 import RouteForm from '@/screens/admin/admin_functions/routes/RouteForm';
+import RouteManagement from '@/screens/admin/admin_functions/routes/RouteManagement';
 
 const Stack = createNativeStackNavigator();
 
@@ -57,13 +58,14 @@ export default function App() {
         >
           <Stack.Screen name="Login" component={Login} />
           <Stack.Screen name="Profile" component={Profile} />
-          <Stack.Screen name="Verify" component={Profile} />
+          <Stack.Screen name="Verify" component={Verify} />
           <Stack.Screen name="Root" component={RootNavigator} />
           <Stack.Screen name="Home" component={Home} />
           <Stack.Screen name="UsuariosAdmin" component={UsuariosAdmin} />
           <Stack.Screen name="StaffRegisterDetails" component={StaffRegisterDetails} />
           <Stack.Screen name="StaffManagement" component={StaffManagement} />
           <Stack.Screen name="RouteDetails" component={RouteDetails} />
+          <Stack.Screen name="RouteManagement" component={RouteManagement} />
           <Stack.Screen name="RouteForm" component={RouteForm} />
         </Stack.Navigator>
       </NavigationContainer>
