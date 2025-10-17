@@ -31,6 +31,7 @@ export default function RouteConfirm({ route, navigation }: Props) {
   const [uploading, setUploading] = useState(false);
   const [uploadedPath, setUploadedPath] = useState<string | null>(null);
   const [routeName, setRouteName] = useState<string | undefined>(location);
+  const [routeDescription, setRouteDescription] = useState<string | undefined>(undefined);
   const [loadingRoute, setLoadingRoute] = useState(false);
   const [isRegistered, setIsRegistered] = useState<boolean | null>(null);
   const [participantId, setParticipantId] = useState<string | null>(participantIdParam ?? null);
@@ -161,7 +162,6 @@ export default function RouteConfirm({ route, navigation }: Props) {
   async function finalizeRoute() {
     try {
       if (status === 'Finalizada') {
-        // ya estaba finalizada; vamos a Home en lugar de goBack
         (navigation as any).navigate('HomeMain');
         return;
       }
@@ -236,7 +236,6 @@ export default function RouteConfirm({ route, navigation }: Props) {
         console.warn('Error setting route end_time', e);
       }
 
-      // Después de finalizar, ir a la tab Home
       (navigation as any).navigate('Home');
     } catch (err) {
       console.error('finalizeRoute error', err);
@@ -248,15 +247,29 @@ export default function RouteConfirm({ route, navigation }: Props) {
   React.useEffect(() => {
     let mounted = true;
     (async () => {
-      if (!id || location) return;
+      if (!id) return;
+      
       try {
         setLoadingRoute(true);
-        const { data, error } = await supabase.from('routes').select('name, route_date, start_time, end_time').eq('id', String(id)).single();
+        console.log('Fetching route details for ID:', id);
+        
+        const { data, error } = await supabase
+          .from('routes')
+          .select('name, description, route_date, start_time, end_time')
+          .eq('id', String(id))
+          .single();
+        
         if (error) {
-          console.warn('Could not fetch route name', error);
+          console.warn('Could not fetch route details', error);
         } else if (mounted) {
+          console.log('Route data fetched:', data);
           setRouteName(data?.name ?? undefined);
-          setRouteDetails({ route_date: data?.route_date, start_time: data?.start_time ?? null, end_time: data?.end_time ?? null });
+          setRouteDescription(data?.description ?? undefined);
+          setRouteDetails({ 
+            route_date: data?.route_date, 
+            start_time: data?.start_time ?? null, 
+            end_time: data?.end_time ?? null 
+          });
         }
       } catch (e) {
         console.warn('Exception fetching route', e);
@@ -265,7 +278,7 @@ export default function RouteConfirm({ route, navigation }: Props) {
       }
     })();
     return () => { mounted = false; };
-  }, [id, location]);
+  }, [id]);
 
   // Load evidences when route is finalized
   React.useEffect(() => {
@@ -351,25 +364,45 @@ export default function RouteConfirm({ route, navigation }: Props) {
 
       <Text style={styles.title}>
         {routeName 
-          ? `Ruta: ${routeName}` 
+          ? `${routeName}` 
           : location 
-            ? `Ruta: ${location}` 
+            ? `${location}` 
             : id 
               ? `Ruta [${id}]` 
               : 'Ruta'}
       </Text>
 
-      <View style={styles.mapPlaceholder}>
-        <Image
-          source={require('../../../assets/map_stock_img.png')}
-          style={styles.mapImage}
-          resizeMode="cover"
-        />
-      </View>
+      {/* Descripción de la ruta */}
+      {routeDescription && (
+        <View style={styles.descriptionCard}>
+          <Text style={styles.descriptionLabel}>Descripción</Text>
+          <Text style={styles.descriptionText}>{routeDescription}</Text>
+        </View>
+      )}
+
+      {/* Detalles de fecha y hora */}
       {routeDetails && (
-        <View style={{ paddingVertical: 8 }}>
-          <Text>Fecha: {routeDetails.route_date ?? '-'}</Text>
-          <Text>Hora: {routeDetails.start_time ? `${routeDetails.start_time?.slice(0,5)}${routeDetails.end_time ? ` - ${routeDetails.end_time?.slice(0,5)}` : ''}` : '-'}</Text>
+        <View style={styles.detailsCard}>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>📅 Fecha:</Text>
+            <Text style={styles.detailValue}>
+              {routeDetails.route_date 
+                ? new Date(routeDetails.route_date).toLocaleDateString('es-MX', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })
+                : '-'}
+            </Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.detailLabel}>🕐 Horario:</Text>
+            <Text style={styles.detailValue}>
+              {routeDetails.start_time 
+                ? `${routeDetails.start_time.slice(0,5)}${routeDetails.end_time ? ` - ${routeDetails.end_time.slice(0,5)}` : ''}` 
+                : 'Por iniciar'}
+            </Text>
+          </View>
         </View>
       )}
 
@@ -470,7 +503,7 @@ export default function RouteConfirm({ route, navigation }: Props) {
 
       {status === 'Finalizada' && (
         <View style={styles.finalizedBanner}>
-          <Text style={styles.finalizedText}>Ruta finalizada — solo se permiten ver detalles.</Text>
+          <Text style={styles.finalizedText}>✓ Ruta finalizada — solo se permiten ver detalles.</Text>
         </View>
       )}
 
@@ -478,7 +511,10 @@ export default function RouteConfirm({ route, navigation }: Props) {
 
       {status !== 'Finalizada' ? (
         (isRegistered === null) ? null : (!isRegistered ? (
-          <TouchableOpacity style={[styles.finishButton, { backgroundColor: '#999' }]} onPress={() => Alert.alert('Registro requerido', 'Regístrate en la ruta para poder finalizarla.') }>
+          <TouchableOpacity 
+            style={[styles.finishButton, { backgroundColor: '#999' }]} 
+            onPress={() => Alert.alert('Registro requerido', 'Regístrate en la ruta para poder finalizarla.')}
+          >
             <Text style={styles.finishButtonText}>Subir Evidencia & Finalizar</Text>
           </TouchableOpacity>
         ) : (
@@ -488,7 +524,7 @@ export default function RouteConfirm({ route, navigation }: Props) {
             <Text style={styles.finishButtonText}>Subir Evidencia & Finalizar</Text>
           </TouchableOpacity>
         ))
-      ) : null /* removido el botón "Cerrar" aquí: ahora se usa la flecha superior para volver a Home */}
+      ) : null}
     </ScrollView>
   );
 }
@@ -500,52 +536,89 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   backButton: {
-  width: 40,
-  height: 40,
-  borderRadius: 20,
-  backgroundColor: '#FFFFFF',
-  alignItems: 'center',
-  justifyContent: 'center',
-  // sombra sutil
-  shadowColor: '#000',
-  shadowOffset: { width: 0, height: 1 },
-  shadowOpacity: 0.08,
-  shadowRadius: 2,
-  elevation: 2,
-  marginTop: 16,   // <- más espacio arriba
-  marginBottom: 8,
-},
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 2,
+    marginTop: 16,
+    marginBottom: 8,
+  },
   backIcon: {
     fontSize: 24,
     color: '#222',
   },
   title: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: '700',
     color: '#222',
-    marginBottom: 12,
-    padding: 10
-  },
-  mapPlaceholder: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    overflow: 'hidden',
-    height: 200,
     marginBottom: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
+    paddingHorizontal: 4,
   },
-  mapImage: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
+  descriptionCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  descriptionLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#5050FF',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  descriptionText: {
+    fontSize: 15,
+    color: '#333',
+    lineHeight: 22,
+  },
+  detailsCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  detailLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    width: 100,
+  },
+  detailValue: {
+    fontSize: 14,
+    color: '#222',
+    flex: 1,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 8,
     marginTop: 12,
-    padding: 8
+    paddingHorizontal: 4,
+    color: '#222',
   },
   evidenceBox: {
     backgroundColor: '#fff',
