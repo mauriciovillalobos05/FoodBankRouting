@@ -375,7 +375,7 @@ export default function RouteConfirm({ route, navigation }: Props) {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      {/* Botón universal: flecha atrás -> Tab Home */}
+      {/* Botón universal: flecha atrás */}
       <TouchableOpacity
         style={styles.backButton}
         onPress={() => navigation.goBack()}
