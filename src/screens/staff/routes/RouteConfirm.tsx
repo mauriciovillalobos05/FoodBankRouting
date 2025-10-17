@@ -162,12 +162,12 @@ export default function RouteConfirm({ route, navigation }: Props) {
     try {
       if (status === 'Finalizada') {
         // ya estaba finalizada; vamos a Home en lugar de goBack
-        (navigation as any).navigate('Home');
+        (navigation as any).navigate('HomeMain');
         return;
       }
       
       if (!uploadedPath && !notes) {
-        (navigation as any).navigate('Home');
+        (navigation as any).navigate('HomeMain');
         return;
       }
 

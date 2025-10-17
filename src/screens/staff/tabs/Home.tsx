@@ -11,10 +11,10 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase, safeLogError } from "@/services/supabase";
-import { 
-  cacheRoutesData, 
+import {
+  cacheRoutesData,
   getCachedRoutesData,
-  RouteWithStatus 
+  RouteWithStatus,
 } from "@/services/routesCache";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -37,6 +37,7 @@ const Home = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [allRoutes, setAllRoutes] = useState<RouteWithStatus[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [stats, setStats] = useState({
     totalRutasHoy: 0,
     rutasCompletadas: 0,
@@ -48,11 +49,24 @@ const Home = () => {
   const getTodayDate = () => new Date().toISOString().split("T")[0];
   const getCurrentTime = () => {
     const now = new Date();
-    return now.toTimeString().split(' ')[0]; // Returns HH:MM:SS
+    return now.toTimeString().split(" ")[0]; // Returns HH:MM:SS
   };
 
   useEffect(() => {
     loadRoutesData();
+    // Obtener el user ID actual
+    const getUserId = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          setCurrentUserId(user.id);
+          console.log("Current user ID:", user.id);
+        }
+      } catch (error) {
+        console.error("Error getting user ID:", error);
+      }
+    };
+    getUserId();
   }, []);
 
   const loadRoutesData = async () => {
@@ -82,7 +96,7 @@ const Home = () => {
         data: { user },
         error: userError,
       } = await supabase.auth.getUser();
-      
+
       if (userError || !user) {
         throw userError;
       }
@@ -250,7 +264,10 @@ const Home = () => {
         );
 
         // Show if user has available slot OR if user is already assigned but route hasn't started
-        if (availableSlots.length > 0 || (userParticipant && !route.start_time)) {
+        if (
+          availableSlots.length > 0 ||
+          (userParticipant && !route.start_time)
+        ) {
           processed.push({
             id: route.id,
             name: route.name,
@@ -269,9 +286,18 @@ const Home = () => {
       });
 
       console.log("Processed routes total:", processed.length);
-      console.log("Finalizadas:", processed.filter(r => r.status === "Finalizada").length);
-      console.log("En curso:", processed.filter(r => r.status === "En curso").length);
-      console.log("Pendientes:", processed.filter(r => r.status === "Pendiente").length);
+      console.log(
+        "Finalizadas:",
+        processed.filter((r) => r.status === "Finalizada").length
+      );
+      console.log(
+        "En curso:",
+        processed.filter((r) => r.status === "En curso").length
+      );
+      console.log(
+        "Pendientes:",
+        processed.filter((r) => r.status === "Pendiente").length
+      );
 
       // Calculate stats - include ALL finalizadas (any date), but only today's en curso
       const rutasCompletadas = processed.filter(
@@ -280,9 +306,9 @@ const Home = () => {
       const rutasSinFinalizar = processed.filter(
         (r) => r.status === "En curso"
       ).length;
-      
+
       // Total rutas hoy = only today's routes that are en curso or finalizada
-      const todayRoutes = processed.filter(r => r.route_date === today);
+      const todayRoutes = processed.filter((r) => r.route_date === today);
       const totalRutasHoy = todayRoutes.filter(
         (r) => r.status === "En curso" || r.status === "Finalizada"
       ).length;
@@ -321,37 +347,39 @@ const Home = () => {
     fetchRoutesData(false);
   };
 
-  const handleRegistrarseRuta = async (route: RouteWithStatus) => {
+  const handleIniciarRuta = async (routeId: string) => {
     try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+      console.log("=== Iniciando ruta ===");
+      console.log("Route ID:", routeId);
       
-      if (userError || !user) throw userError;
+      const now = new Date();
+      const hh = String(now.getHours()).padStart(2, "0");
+      const mm = String(now.getMinutes()).padStart(2, "0");
+      const ss = String(now.getSeconds()).padStart(2, "0");
+      const startTime = `${hh}:${mm}:${ss}`;
 
-      // Find an available participant slot
-      const availableSlot = route.participants?.find(
-        (p) => p.user_id === null
-      );
+      console.log("Start time to insert:", startTime);
 
-      if (!availableSlot) {
-        console.error("No available slots for this route");
+      const { data, error } = await supabase
+        .from("routes")
+        .update({ start_time: startTime })
+        .eq("id", routeId)
+        .select();
+
+      if (error) {
+        console.error("Error updating start_time:", error);
+        console.error("Error details:", JSON.stringify(error, null, 2));
         return;
       }
 
-      const { error } = await supabase
-        .from("route_participants")
-        .update({ user_id: user.id })
-        .eq("id", availableSlot.id);
-
-      if (error) throw error;
+      console.log("Route started successfully!");
+      console.log("Updated data:", data);
       
-      console.log("Successfully registered for route");
-      // Refresh data after registration
-      fetchRoutesData(false);
+      // Refresh data to show updated status
+      await fetchRoutesData(false);
     } catch (error) {
-      safeLogError("Error registering for route", error);
+      console.error("Exception in handleIniciarRuta:", error);
+      safeLogError("Error starting route", error);
     }
   };
 
@@ -376,20 +404,28 @@ const Home = () => {
       }
     };
 
-    const getActionButton = () => {
-      if (ruta.status === "Pendiente") {
-        const userParticipant = ruta.participants?.find(
-          (p) => p.user_id !== null
-        );
-        
-      }
-      return null;
-    };
+    // Verificar si el usuario actual está asignado a esta ruta
+    const userParticipant = ruta.participants?.find(
+      (p) => p.user_id === currentUserId
+    );
 
     // Get participant_id for navigation
-    const participantId = ruta.participants?.find(
-      (p) => p.user_id !== null
-    )?.id || ruta.participants?.[0]?.id;
+    const participantId =
+      ruta.participants?.find((p) => p.user_id !== null)?.id ||
+      ruta.participants?.[0]?.id;
+
+    // Verificar si debe mostrar el botón
+    const shouldShowStartButton =
+      ruta.status === "Pendiente" && !!userParticipant && !ruta.start_time;
+
+    console.log(`Route ${ruta.name} (${ruta.id}):`, {
+      status: ruta.status,
+      hasUserParticipant: !!userParticipant,
+      currentUserId,
+      participantUserId: userParticipant?.user_id,
+      startTime: ruta.start_time,
+      shouldShowButton: shouldShowStartButton,
+    });
 
     return (
       <View key={ruta.id} style={styles.routeItem}>
@@ -428,7 +464,19 @@ const Home = () => {
           >
             <Text style={styles.detailsButtonText}>ver detalles</Text>
           </TouchableOpacity>
-          {getActionButton()}
+
+          {/* Botón Iniciar Ruta - solo si: pendiente + usuario asignado + sin start_time */}
+          {shouldShowStartButton && (
+            <TouchableOpacity
+              style={styles.startRouteButton}
+              onPress={() => {
+                console.log("Button pressed - Starting route:", ruta.id);
+                handleIniciarRuta(ruta.id);
+              }}
+            >
+              <Text style={styles.startRouteButtonText}>Iniciar Ruta</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     );
@@ -574,6 +622,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   emptyText: { fontSize: 16, color: "#5C5C60", textAlign: "center" },
+  startRouteButton: {
+    backgroundColor: "#00953B",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  startRouteButtonText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "500",
+  },
 });
 
 export default Home;
