@@ -18,50 +18,33 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-
-  const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
-  };
 
   const onLogin = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase.auth.signInWithPassword({
+
+      // Enviar OTP por email (magic link / OTP según configuración Supabase)
+      const { data, error } = await supabase.auth.signInWithOtp({
         email: email.trim(),
-        password,
       });
 
-      // Log for debugging: show whether signIn returned session data
-      console.log('signInWithPassword result:', { data, error });
+      console.log("signInWithOtp result:", { data, error });
 
       if (error) {
         const msg = (error.message || "").toLowerCase();
         if (msg.includes("confirm")) {
           Alert.alert(
             "Confirma tu correo",
-            "Abre el enlace del email y luego vuelve a iniciar sesión."
+            "Abre el enlace del email y luego vuelve a intentar."
           );
           return;
         }
         throw error;
       }
 
-      // Verify session persistence immediately
-      try {
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError || !sessionData?.session) {
-          // Session not persisted yet — show message and don't navigate
-          Alert.alert('Error de sesión', 'No se pudo persistir la sesión. Intenta de nuevo.');
-          return;
-        }
-      } catch (e) {
-        console.warn('Error verificando sesión después del login', e);
-        Alert.alert('Error de sesión', 'No se pudo verificar la sesión.');
-        return;
-      }
-
-      nav.replace("Root");
+      // Navegar a la pantalla de confirmación pasando el email
+      nav.replace("Confirmacion", { email: email.trim() });
+      return;
     } catch (e: any) {
       const msg = (e?.message || "").toLowerCase();
       
@@ -107,7 +90,7 @@ export default function Login() {
     <View style={styles.container}>
       <View style={styles.logoContainer}>
         <Image 
-          source={require('../../assets/full_logo_bda.png')} 
+          source={require('../../../assets/full_logo_bda.png')} 
           style={styles.logoImage}
           resizeMode="contain"
         />
@@ -146,7 +129,7 @@ export default function Login() {
           {loading ? (
             <ActivityIndicator color={styles.buttonText.color} />
           ) : (
-            <Text style={styles.buttonText}>Entrar</Text>
+            <Text style={styles.buttonText}>Enviar código</Text>
           )}
         </TouchableOpacity>
 
@@ -240,30 +223,5 @@ const styles = StyleSheet.create({
   contactAdminText: {
     color: '#CE0E2D',
     fontWeight: '600',
-  },
-  passwordContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#5C5C60',
-    borderRadius: 12,
-    backgroundColor: '#FFFFFF',
-  },
-  passwordInput: {
-    flex: 1,
-    padding: 16,
-    fontSize: 16,
-    color: '#5C5C60',
-  },
-  eyeButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  eyeImage: {
-    width: 24,
-    height: 24,
-    resizeMode: 'contain',
   },
 });

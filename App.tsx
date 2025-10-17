@@ -5,7 +5,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as Linking from 'expo-linking';
-
+import Confirmacion from '@/screens/auth/OTP';
 import RootNavigator from './src/app/RootNavigator';
 import SplashScreen from './src/components/ui/SplashScreen';
 
@@ -29,6 +29,7 @@ const linking = {
       AuthCallback: 'auth-callback',
       Profile: 'profile',
       Root: '*',
+      Confirmacion: 'otp',
     },
   },
 };
@@ -143,6 +144,7 @@ export default function App() {
           <Stack.Screen name="Profile" component={Profile} />
           <Stack.Screen name="Verify" component={Profile} />
           <Stack.Screen name="Root" component={RootNavigator} />
+          <Stack.Screen name="Confirmacion" component={Confirmacion} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
