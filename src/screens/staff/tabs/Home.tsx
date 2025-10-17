@@ -30,6 +30,8 @@ type HomeStackParamList = {
       }
     | undefined;
 };
+import { useFocusEffect } from "@react-navigation/native";
+import { useCallback } from "react";
 
 type NavigationProp = NativeStackNavigationProp<HomeStackParamList, "HomeMain">;
 
@@ -51,6 +53,13 @@ const Home = () => {
     const now = new Date();
     return now.toTimeString().split(" ")[0]; // Returns HH:MM:SS
   };
+
+  useFocusEffect(
+    useCallback(() => {
+      console.log("🔄 Refrescando al entrar a la tab Home");
+      fetchRoutesData(true); // o loadRoutesData() si quieres usar cache
+    }, [])
+  );
 
   useEffect(() => {
     loadRoutesData();
