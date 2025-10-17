@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import CryptoJS from 'crypto-js';
 import { Buffer } from 'buffer';
 import { supabase, safeLogError } from '@/services/supabase';
@@ -113,7 +113,7 @@ export default function RouteConfirm({ route, navigation }: Props) {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         quality: 0.8,
         base64: false,
       });
@@ -212,9 +212,32 @@ export default function RouteConfirm({ route, navigation }: Props) {
         const { error } = await supabase.from('evidences').insert([payload]);
         if (error) {
           console.warn('Could not insert evidence metadata', error);
-          Alert.alert('Advertencia', 'No se pudo guardar la metadata, pero la evidencia puede estar subida. Se procederá a finalizar la ruta.');
+          Alert.alert(
+            'Advertencia', 
+            'No se pudo guardar la metadata, pero la evidencia puede estar subida. Se procederá a finalizar la ruta.',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  (navigation as any).navigate('HomeMain', { refresh: Date.now() });
+                }
+              }
+            ]
+          );
+          return;
         } else {
-          Alert.alert('Ruta finalizada', 'Notas y evidencias registradas.');
+          Alert.alert(
+            'Ruta finalizada', 
+            'Notas y evidencias registradas.',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  (navigation as any).navigate('HomeMain', { refresh: Date.now() });
+                }
+              }
+            ]
+          );
         }
       } catch (e) {
         console.warn('evidences insert exception, continuing to finalize', e);
@@ -235,8 +258,6 @@ export default function RouteConfirm({ route, navigation }: Props) {
       } catch (e) {
         console.warn('Error setting route end_time', e);
       }
-
-      (navigation as any).navigate('Home');
     } catch (err) {
       console.error('finalizeRoute error', err);
       Alert.alert('Error', 'No se pudo finalizar la ruta.');
@@ -357,7 +378,7 @@ export default function RouteConfirm({ route, navigation }: Props) {
       {/* Botón universal: flecha atrás -> Tab Home */}
       <TouchableOpacity
         style={styles.backButton}
-        onPress={() => (navigation as any).navigate('HomeMain')}
+        onPress={() => navigation.goBack()}
       >
         <Text style={styles.backIcon}>‹</Text>
       </TouchableOpacity>
