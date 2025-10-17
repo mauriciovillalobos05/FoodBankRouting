@@ -12,9 +12,12 @@ import Login from '@/screens/auth/Login';
 import Profile from '@/screens/staff/tabs/Profile';
 import Verify from '@/screens/auth/Verify';
 import HomeAdmin from '@/screens/admin/admin_functions/staff_assign/HomeAdmin';
+import Home from '@/screens/admin/tabs/Dashboard';
 import UsuariosAdmin from '@/screens/admin/admin_functions/staff_assign/usuariosAdmin';
 import StaffRegisterDetails from '@/screens/admin/admin_functions/staff_assign/StaffRegisterDetails';
 import StaffManagement from '@/screens/admin/admin_functions/staff_assign/StaffManagement';
+import RouteDetails from '@/screens/admin/admin_functions/routes/RouteDetails';
+import RouteForm from '@/screens/admin/admin_functions/routes/RouteForm';
 
 const Stack = createNativeStackNavigator();
 
@@ -56,10 +59,12 @@ export default function App() {
           <Stack.Screen name="Profile" component={Profile} />
           <Stack.Screen name="Verify" component={Profile} />
           <Stack.Screen name="Root" component={RootNavigator} />
-          <Stack.Screen name="HomeAdmin" component={HomeAdmin} />
+          <Stack.Screen name="Home" component={Home} />
           <Stack.Screen name="UsuariosAdmin" component={UsuariosAdmin} />
           <Stack.Screen name="StaffRegisterDetails" component={StaffRegisterDetails} />
           <Stack.Screen name="StaffManagement" component={StaffManagement} />
+          <Stack.Screen name="RouteDetails" component={RouteDetails} />
+          <Stack.Screen name="RouteForm" component={RouteForm} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

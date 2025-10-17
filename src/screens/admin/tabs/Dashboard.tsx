@@ -8,8 +8,9 @@ import {
   SafeAreaView,
   Image
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 
-const Home = () => {
+const Home = ({navigation}: any) => {
   // Datos mock para el template
   const statsData = {
     totalRutasHoy: 0,
@@ -60,7 +61,10 @@ const Home = () => {
       if (status === 'Finalizada') {
         return (
           <View style={styles.routeActions}>
-            <TouchableOpacity style={styles.detailsButton}>
+            <TouchableOpacity 
+              style={styles.detailsButton}
+              onPress={() => navigation.navigate('RouteDetails', {ruta})}
+            >
               <Text style={styles.detailsButtonText}>Ver detalles</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.pdfButton}>
@@ -70,7 +74,10 @@ const Home = () => {
         );
       } else {
         return (
-          <TouchableOpacity style={styles.detailsButton}>
+          <TouchableOpacity 
+            style={styles.detailsButton}
+            onPress={() => navigation.navigate('RouteDetails', {ruta})}
+          >
             <Text style={styles.detailsButtonText}>Ver detalles</Text>
           </TouchableOpacity>
         );
@@ -101,7 +108,7 @@ const Home = () => {
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Panel Staff - Banco de Alimentos</Text>
+          <Text style={styles.headerTitle}>Panel Admin - Banco de Alimentos</Text>
         </View>
 
         {/* Stats Cards */}
@@ -127,11 +134,17 @@ const Home = () => {
 
         {/* Action Buttons */}
         <View style={styles.actionButtonsContainer}>
-          <TouchableOpacity style={styles.addRouteButton}>
+          <TouchableOpacity 
+          style={styles.addRouteButton}
+          onPress={() => navigation.navigate('RouteForm')}
+          >
             <Text style={styles.addRouteButtonText}>Agregar ruta</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.manageRoutesButton}>
+          <TouchableOpacity 
+          style={styles.manageRoutesButton}
+          onPress={() => navigation.navigate('')} // Aqui va el de routeManagement
+          >
             <Text style={styles.manageRoutesButtonText}>Administrar Rutas</Text>
           </TouchableOpacity>
         </View>
