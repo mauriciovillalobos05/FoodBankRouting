@@ -1,443 +1,676 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Dimensions, ActivityIndicator } from 'react-native';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { supabase } from '@/services/supabase';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 type RootStackParamList = {
-  StaffManagement: { route_id?: string };
-  RouteManagement: { id: string; location?: string; selectedStaffIds?: string[] };
+  RouteManagement: { id?: string; location?: string; status?: 'Pendiente' | 'En curso' | 'Finalizada'; participant_id?: string } | undefined;
+  RouteDetails: { routeId: string; routeName: string };
 };
 
-type Props = NativeStackScreenProps<RootStackParamList, 'StaffManagement'>;
-
-interface Staff {
-  id: string;
-  full_name: string;
-  role: string;
-}
+type Props = NativeStackScreenProps<RootStackParamList, 'RouteManagement'>;
 
 interface Route {
   id: string;
   name: string;
-  route_date: string;
+  description?: string;
+  route_date?: string;
+  start_time?: string;
+  end_time?: string;
 }
 
-const StaffManagement = ({ navigation, route }: Props) => {
-  const route_id = route.params?.route_id;
-  
-  const [isStaffDropdownOpen, setIsStaffDropdownOpen] = useState(false);
-  const [isRouteDropdownOpen, setIsRouteDropdownOpen] = useState(false);
-  const [selectedStaff, setSelectedStaff] = useState<string[]>([]);
-  const [selectedRoute, setSelectedRoute] = useState<string | null>(route_id || null);
-  const [staffList, setStaffList] = useState<Staff[]>([]);
-  const [routeList, setRouteList] = useState<Route[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingRoutes, setLoadingRoutes] = useState(true);
+interface RouteStop {
+  id: string;
+  route_id: string;
+  name: string;
+  address?: string;
+  latitude: number;
+  longitude: number;
+  stop_order?: number;
+}
 
-  // Cargar staff disponible desde Supabase
+interface StaffUser {
+  id: string;
+  full_name: string;
+  phone?: string;
+}
+
+export default function RouteManagement({ route, navigation }: Props) {
+  const windowHeight = Dimensions.get('window').height;
+
+  // State para rutas y stops
+  const [routes, setRoutes] = useState<Route[]>([]);
+  const [routeStops, setRouteStops] = useState<RouteStop[]>([]);
+  const [loadingRoutes, setLoadingRoutes] = useState(true);
+  const [loadingStops, setLoadingStops] = useState(false);
+
+  // State para staff
+  const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
+  const [loadingStaff, setLoadingStaff] = useState(true);
+  const [selectedStaff, setSelectedStaff] = useState<StaffUser | null>(null);
+
+  // Dropdown state
+  const [routeDropdownOpen, setRouteDropdownOpen] = useState(false);
+  const [staffDropdownOpen, setStaffDropdownOpen] = useState(false);
+  const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
+
+  // Map state
+  const [mapRegion, setMapRegion] = useState({
+    latitude: 20.6597,
+    longitude: -103.3496,
+    latitudeDelta: 0.1,
+    longitudeDelta: 0.1,
+  });
+
+  // Cargar todas las rutas disponibles
   useEffect(() => {
-    loadAvailableStaff();
-    loadAvailableRoutes();
+    let mounted = true;
+    (async () => {
+      try {
+        setLoadingRoutes(true);
+        const { data, error } = await supabase
+          .from('routes')
+          .select('id, name, description, route_date, start_time, end_time')
+          .order('route_date', { ascending: false });
+
+        if (error) {
+          console.warn('Error cargando rutas:', error);
+          Alert.alert('Error', 'No se pudieron cargar las rutas');
+        } else if (mounted && data) {
+          setRoutes(data);
+        }
+      } catch (e) {
+        console.warn('Excepción cargando rutas:', e);
+      } finally {
+        if (mounted) setLoadingRoutes(false);
+      }
+    })();
+    return () => { mounted = false; };
   }, []);
 
-  const loadAvailableStaff = async () => {
-    try {
-      setLoading(true);
-      
-      const { data: users, error } = await supabase
-        .from('users')
-        .select('id, full_name, role');
-      
-      if (error) throw error;
-      
-      setStaffList(users || []);
-    } catch (error) {
-      console.error('Error loading staff:', error);
-      Alert.alert('Error', 'No se pudo cargar el listado de staff');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Cargar staff users
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        setLoadingStaff(true);
+        const { data, error } = await supabase
+          .from('users')
+          .select('id, full_name, phone')
+          .eq('role', 'staff')
+          .order('full_name', { ascending: true });
 
-  const loadAvailableRoutes = async () => {
-    try {
-      setLoadingRoutes(true);
-      
-      const { data: routes, error } = await supabase
-        .from('routes')
-        .select('id, name, route_date')
-        .order('route_date', { ascending: false });
-      
-      if (error) throw error;
-      
-      setRouteList(routes || []);
-    } catch (error) {
-      console.error('Error loading routes:', error);
-      Alert.alert('Error', 'No se pudo cargar el listado de rutas');
-    } finally {
-      setLoadingRoutes(false);
-    }
-  };
+        if (error) {
+          console.warn('Error cargando staff:', error);
+        } else if (mounted && data) {
+          setStaffUsers(data);
+        }
+      } catch (e) {
+        console.warn('Excepción cargando staff:', e);
+      } finally {
+        if (mounted) setLoadingStaff(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
 
-  const toggleStaffSelection = (staffId: string) => {
-    setSelectedStaff(prev => 
-      prev.includes(staffId) 
-        ? prev.filter(s => s !== staffId)
-        : [...prev, staffId]
-    );
-  };
-
-  const handleContinue = () => {
-    if (selectedStaff.length === 0) {
-      Alert.alert('Atención', 'Por favor selecciona al menos un miembro del staff');
+  // Cargar stops cuando se selecciona una ruta
+  useEffect(() => {
+    let mounted = true;
+    if (!selectedRoute) {
+      setRouteStops([]);
       return;
     }
 
+    (async () => {
+      try {
+        setLoadingStops(true);
+        const { data, error } = await supabase
+          .from('route_stops')
+          .select('id, route_id, name, address, latitude, longitude, stop_order')
+          .eq('route_id', selectedRoute.id)
+          .order('stop_order', { ascending: true });
+
+        if (error) {
+          console.warn('Error cargando stops:', error);
+        } else if (mounted && data) {
+          setRouteStops(data);
+
+          // Centrar mapa en el primer stop
+          if (data.length > 0) {
+            setMapRegion({
+              latitude: data[0].latitude,
+              longitude: data[0].longitude,
+              latitudeDelta: 0.05,
+              longitudeDelta: 0.05,
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Excepción cargando stops:', e);
+      } finally {
+        if (mounted) setLoadingStops(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [selectedRoute]);
+
+  const handleAssignStaff = async () => {
     if (!selectedRoute) {
       Alert.alert('Atención', 'Por favor selecciona una ruta');
       return;
     }
 
-    // Navegar a RouteManagement con el staff seleccionado
-    navigation.navigate('RouteManagement', { 
-      id: selectedRoute,
-      selectedStaffIds: selectedStaff
-    });
-  };
+    if (!selectedStaff) {
+      Alert.alert('Atención', 'Por favor selecciona un miembro del staff');
+      return;
+    }
 
-  const getSelectedRouteName = () => {
-    const route = routeList.find(r => r.id === selectedRoute);
-    return route ? `${route.name} - ${route.route_date}` : 'Seleccionar ruta';
+    try {
+      // Insertar participante en route_participants
+      const { error } = await supabase
+        .from('route_participants')
+        .insert({
+          route_id: selectedRoute.id,
+          user_id: selectedStaff.id,
+          assigned_at: new Date().toISOString(),
+        });
+
+      if (error) {
+        console.warn('Error asignando staff:', error);
+        Alert.alert('Error', 'No se pudo asignar el staff a la ruta');
+      } else {
+        Alert.alert(
+          'Éxito',
+          `${selectedStaff.full_name} ha sido asignado(a) a ${selectedRoute.name}`,
+          [
+            {
+              text: 'Ver detalles',
+              onPress: () => navigation.navigate('RouteDetails', {
+                routeId: selectedRoute.id,
+                routeName: selectedRoute.name,
+              }),
+            },
+            { text: 'OK' }
+          ]
+        );
+        // Limpiar selección
+        setSelectedStaff(null);
+      }
+    } catch (e) {
+      console.warn('Excepción asignando staff:', e);
+      Alert.alert('Error', 'Ocurrió un error al asignar el staff');
+    }
   };
 
   return (
-    <View style={styles.container}>
-      <ScrollView style={styles.content}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Text style={styles.backArrow}>←</Text>
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Administrar Staff</Text>
-          <View style={styles.headerSpacer} />
-        </View>
+    <ScrollView contentContainerStyle={styles.container}>
+      {/* Mapa con marcadores */}
+      <View style={[styles.mapContainer, { height: windowHeight * 0.4 }]}>
+        <MapView
+          provider={PROVIDER_GOOGLE}
+          style={styles.map}
+          region={mapRegion}
+          onRegionChangeComplete={setMapRegion}
+        >
+          {routeStops.map((stop, index) => (
+            <Marker
+              key={stop.id}
+              coordinate={{
+                latitude: stop.latitude,
+                longitude: stop.longitude,
+              }}
+              title={stop.name}
+              description={stop.address}
+              pinColor={selectedRoute ? '#FF6B35' : '#4A90E2'}
+            >
+              <View style={[
+                styles.customMarker,
+                { backgroundColor: selectedRoute ? '#FF6B35' : '#4A90E2' }
+              ]}>
+                <Text style={styles.markerText}>{index + 1}</Text>
+              </View>
+            </Marker>
+          ))}
+        </MapView>
 
-        {/* Route Selection Dropdown */}
+        <TouchableOpacity
+          style={styles.overlayBackButton}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.overlayBackIcon}>←</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Título */}
+      <Text style={styles.title}>Asignar Staff a Ruta</Text>
+
+      {/* Dropdown de rutas */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Selecciona una ruta *</Text>
         <View style={styles.dropdownContainer}>
-          <Text style={styles.label}>Seleccionar Ruta</Text>
-          <TouchableOpacity 
-            style={styles.dropdown}
-            onPress={() => setIsRouteDropdownOpen(!isRouteDropdownOpen)}
+          <TouchableOpacity
+            style={styles.dropdownToggle}
+            onPress={() => setRouteDropdownOpen((s) => !s)}
             disabled={loadingRoutes}
           >
-            <Text style={[
-              styles.dropdownText,
-              !selectedRoute && styles.placeholderText
-            ]}>
-              {loadingRoutes ? 'Cargando rutas...' : getSelectedRouteName()}
-            </Text>
-            <Text style={styles.dropdownArrow}>▼</Text>
+            <View style={styles.dropdownToggleContent}>
+              <Text style={[styles.dropdownLabel, !selectedRoute && styles.placeholderText]}>
+                {loadingRoutes 
+                  ? 'Cargando rutas...' 
+                  : selectedRoute 
+                    ? selectedRoute.name 
+                    : 'Selecciona una ruta'}
+              </Text>
+              {loadingRoutes ? (
+                <ActivityIndicator size="small" color="#666" />
+              ) : (
+                <Text style={[styles.dropdownArrow, routeDropdownOpen && styles.dropdownArrowOpen]}>
+                  {routeDropdownOpen ? '▴' : '▾'}
+                </Text>
+              )}
+            </View>
           </TouchableOpacity>
 
-          {/* Route List */}
-          {isRouteDropdownOpen && (
-            <View style={styles.staffList}>
-              {loadingRoutes ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color="#5050FF" />
-                </View>
-              ) : routeList.length === 0 ? (
-                <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyText}>No hay rutas disponibles</Text>
-                </View>
-              ) : (
-                routeList.map((routeItem) => (
-                  <TouchableOpacity
-                    key={routeItem.id}
-                    style={[
-                      styles.staffItem,
-                      selectedRoute === routeItem.id && styles.staffItemSelected
-                    ]}
-                    onPress={() => {
-                      setSelectedRoute(routeItem.id);
-                      setIsRouteDropdownOpen(false);
-                    }}
-                  >
-                    <View style={styles.staffItemContent}>
-                      <View style={styles.staffInfo}>
-                        <Text style={[
-                          styles.staffItemText,
-                          selectedRoute === routeItem.id && styles.staffItemTextSelected
-                        ]}>
-                          {routeItem.name}
+          {routeDropdownOpen && !loadingRoutes && (
+            <View style={styles.dropdownList}>
+              <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
+                {routes.length === 0 ? (
+                  <View style={styles.dropdownItem}>
+                    <Text style={styles.placeholderText}>No hay rutas disponibles</Text>
+                  </View>
+                ) : (
+                  routes.map((r) => (
+                    <TouchableOpacity
+                      key={r.id}
+                      style={[
+                        styles.dropdownItem,
+                        selectedRoute?.id === r.id && styles.dropdownItemSelected
+                      ]}
+                      onPress={() => {
+                        setSelectedRoute(r);
+                        setRouteDropdownOpen(false);
+                      }}
+                    >
+                      <Text style={[
+                        styles.dropdownItemText,
+                        selectedRoute?.id === r.id && styles.dropdownItemTextSelected
+                      ]}>
+                        {r.name}
+                      </Text>
+                      {r.route_date && (
+                        <Text style={styles.dropdownItemSubtext}>
+                          {r.route_date}
                         </Text>
-                        <Text style={styles.staffRole}>{routeItem.route_date}</Text>
-                      </View>
-                      {selectedRoute === routeItem.id && (
-                        <Text style={styles.checkmark}>✓</Text>
                       )}
-                    </View>
-                  </TouchableOpacity>
-                ))
-              )}
+                    </TouchableOpacity>
+                  ))
+                )}
+              </ScrollView>
             </View>
           )}
         </View>
+      </View>
 
-        {/* Staff Selection Dropdown */}
-        <View style={styles.dropdownContainer}>
-          <Text style={styles.label}>Seleccionar Staff</Text>
-          <TouchableOpacity 
-            style={styles.dropdown}
-            onPress={() => setIsStaffDropdownOpen(!isStaffDropdownOpen)}
-            disabled={loading}
-          >
-            <Text style={styles.dropdownText}>
-              {loading ? 'Cargando staff...' : 'Staff disponible para la ruta'}
+      {/* Detalles de la ruta seleccionada */}
+      {selectedRoute && (
+        <View style={styles.detailsContainer}>
+          {selectedRoute.description && (
+            <Text style={styles.detailText}>
+              {selectedRoute.description}
             </Text>
-            <Text style={styles.dropdownArrow}>▼</Text>
+          )}
+          <Text style={styles.detailText}>
+            Fecha: {selectedRoute.route_date ?? '-'}
+          </Text>
+          <Text style={styles.detailText}>
+            Hora: {selectedRoute.start_time 
+              ? `${selectedRoute.start_time.slice(0, 5)}${selectedRoute.end_time ? ` - ${selectedRoute.end_time.slice(0, 5)}` : ''}` 
+              : '-'
+            }
+          </Text>
+          <Text style={styles.detailText}>
+            Puntos de entrega: {routeStops.length}
+          </Text>
+        </View>
+      )}
+
+      {/* Indicador de carga de stops */}
+      {loadingStops && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="small" color="#666" />
+          <Text style={styles.loadingText}>Cargando puntos de entrega...</Text>
+        </View>
+      )}
+
+      {/* Dropdown de Staff */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Selecciona staff *</Text>
+        <View style={styles.dropdownContainer}>
+          <TouchableOpacity
+            style={styles.dropdownToggle}
+            onPress={() => setStaffDropdownOpen((s) => !s)}
+            disabled={loadingStaff}
+          >
+            <View style={styles.dropdownToggleContent}>
+              <Text style={[styles.dropdownLabel, !selectedStaff && styles.placeholderText]}>
+                {loadingStaff 
+                  ? 'Cargando staff...' 
+                  : selectedStaff
+                    ? selectedStaff.full_name
+                    : 'Selecciona un miembro del staff'}
+              </Text>
+              {loadingStaff ? (
+                <ActivityIndicator size="small" color="#666" />
+              ) : (
+                <Text style={[styles.dropdownArrow, staffDropdownOpen && styles.dropdownArrowOpen]}>
+                  {staffDropdownOpen ? '▴' : '▾'}
+                </Text>
+              )}
+            </View>
           </TouchableOpacity>
 
-          {/* Staff List */}
-          {isStaffDropdownOpen && (
-            <View style={styles.staffList}>
-              {loading ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color="#5050FF" />
-                </View>
-              ) : staffList.length === 0 ? (
-                <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyText}>No hay staff disponible</Text>
-                </View>
-              ) : (
-                staffList.map((staff) => (
-                  <TouchableOpacity
-                    key={staff.id}
-                    style={[
-                      styles.staffItem,
-                      selectedStaff.includes(staff.id) && styles.staffItemSelected
-                    ]}
-                    onPress={() => toggleStaffSelection(staff.id)}
-                  >
-                    <View style={styles.staffItemContent}>
+          {staffDropdownOpen && !loadingStaff && (
+            <View style={styles.dropdownList}>
+              <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
+                {staffUsers.length === 0 ? (
+                  <View style={styles.dropdownItem}>
+                    <Text style={styles.placeholderText}>No hay staff disponible</Text>
+                  </View>
+                ) : (
+                  staffUsers.map((staff) => (
+                    <TouchableOpacity
+                      key={staff.id}
+                      style={[
+                        styles.dropdownItem,
+                        selectedStaff?.id === staff.id && styles.dropdownItemSelected
+                      ]}
+                      onPress={() => {
+                        setSelectedStaff(staff);
+                        setStaffDropdownOpen(false);
+                      }}
+                    >
                       <View style={styles.staffInfo}>
                         <Text style={[
-                          styles.staffItemText,
-                          selectedStaff.includes(staff.id) && styles.staffItemTextSelected
+                          styles.dropdownItemText,
+                          selectedStaff?.id === staff.id && styles.dropdownItemTextSelected
                         ]}>
                           {staff.full_name}
                         </Text>
-                        <Text style={styles.staffRole}>{staff.role}</Text>
+                        {staff.phone && (
+                          <Text style={styles.dropdownItemSubtext}>
+                            {staff.phone}
+                          </Text>
+                        )}
                       </View>
-                      {selectedStaff.includes(staff.id) && (
-                        <Text style={styles.checkmark}>✓</Text>
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                ))
-              )}
+                    </TouchableOpacity>
+                  ))
+                )}
+              </ScrollView>
             </View>
           )}
         </View>
+      </View>
 
-        {/* Selected Count */}
-        {selectedStaff.length > 0 && (
-          <View style={styles.selectedCountContainer}>
-            <Text style={styles.selectedCountText}>
-              {selectedStaff.length} miembro{selectedStaff.length !== 1 ? 's' : ''} seleccionado{selectedStaff.length !== 1 ? 's' : ''}
-            </Text>
+      {/* Staff seleccionado */}
+      {selectedStaff && (
+        <View style={styles.selectedStaffContainer}>
+          <Text style={styles.selectedStaffTitle}>Staff seleccionado:</Text>
+          <View style={styles.selectedStaffItem}>
+            <Text style={styles.selectedStaffName}>{selectedStaff.full_name}</Text>
+            <TouchableOpacity
+              onPress={() => setSelectedStaff(null)}
+              style={styles.removeButton}
+            >
+              <Text style={styles.removeButtonText}>✕</Text>
+            </TouchableOpacity>
           </View>
-        )}
-
-        {/* Continue Button */}
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity 
-            style={[
-              styles.continueButton,
-              (selectedStaff.length === 0 || !selectedRoute) && styles.continueButtonDisabled
-            ]}
-            onPress={handleContinue}
-            disabled={selectedStaff.length === 0 || !selectedRoute}
-          >
-            <Text style={styles.continueButtonText}>Continuar</Text>
-          </TouchableOpacity>
         </View>
-      </ScrollView>
-    </View>
+      )}
+
+      {/* Botón Asignar Staff */}
+      <TouchableOpacity
+        style={[
+          styles.selectButton,
+          (!selectedRoute || !selectedStaff) && styles.selectButtonDisabled
+        ]}
+        onPress={handleAssignStaff}
+        activeOpacity={0.8}
+        disabled={!selectedRoute || !selectedStaff}
+      >
+        <Text style={styles.selectButtonText}>
+          Asignar Staff a Ruta
+        </Text>
+      </TouchableOpacity>
+    </ScrollView>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    padding: 16,
     backgroundColor: '#F5F5F5',
-    paddingTop: 40,
+    flexGrow: 1,
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: 16,
+  title: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#222',
+    marginBottom: 16,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 20,
-    marginBottom: 30,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#E5E5E5',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  backArrow: {
-    fontSize: 18,
-    color: '#5C5C60',
-    fontWeight: 'bold',
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#5C5C60',
-    textAlign: 'center',
-  },
-  headerSpacer: {
-    width: 40,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#5C5C60',
-    marginBottom: 8,
-  },
-  dropdownContainer: {
+  section: {
     marginBottom: 20,
   },
-  dropdown: {
-    backgroundColor: '#FFFFFF',
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#444',
+    marginBottom: 8,
+  },
+  mapContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    overflow: 'hidden',
+    width: '100%',
+    marginBottom: 16,
+  },
+  map: {
+    width: '100%',
+    height: '100%',
+  },
+  customMarker: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  markerText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  overlayBackButton: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    zIndex: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  overlayBackIcon: {
+    marginTop: -12,
+    fontSize: 40,
+    color: '#000',
+    fontWeight: '900',
+    lineHeight: 34,
+  },
+  detailsContainer: {
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  detailText: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 4,
+  },
+  dropdownContainer: {
+    zIndex: 1000,
+  },
+  dropdownToggle: {
+    backgroundColor: '#fff',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E5E5E5',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    borderColor: '#ddd',
   },
-  dropdownText: {
-    fontSize: 16,
-    color: '#5C5C60',
+  dropdownToggleContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dropdownLabel: {
+    color: '#222',
     flex: 1,
+    fontSize: 15,
   },
   placeholderText: {
     color: '#999',
   },
   dropdownArrow: {
-    fontSize: 12,
-    color: '#5C5C60',
+    color: '#666',
+    marginLeft: 12,
+    fontSize: 16,
   },
-  staffList: {
-    backgroundColor: '#FFFFFF',
+  dropdownArrowOpen: {
+    transform: [{ rotate: '180deg' }],
+  },
+  dropdownList: {
+    marginTop: 8,
+    backgroundColor: '#fff',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E5E5E5',
-    borderTopWidth: 0,
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
+    borderColor: '#eee',
+    overflow: 'hidden',
+    maxHeight: 200,
   },
-  staffItem: {
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+  dropdownScroll: {
+    maxHeight: 200,
+  },
+  dropdownItem: {
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: '#f2f2f2',
   },
-  staffItemSelected: {
-    backgroundColor: '#E8E3FF',
+  dropdownItemSelected: {
+    backgroundColor: '#f0f0f0',
+  },
+  dropdownItemText: {
+    fontSize: 15,
+    color: '#222',
+  },
+  dropdownItemTextSelected: {
+    fontWeight: '600',
+    color: '#000',
+  },
+  dropdownItemSubtext: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 2,
   },
   staffItemContent: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
   },
   staffInfo: {
     flex: 1,
   },
-  staffItemText: {
+  selectedStaffContainer: {
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  selectedStaffTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#444',
+    marginBottom: 8,
+  },
+  selectedStaffItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 6,
+    marginBottom: 6,
+  },
+  selectedStaffName: {
+    fontSize: 14,
+    color: '#222',
+    flex: 1,
+  },
+  removeButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#ff4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  removeButtonText: {
+    color: '#fff',
     fontSize: 16,
-    color: '#5C5C60',
-    marginBottom: 4,
-  },
-  staffItemTextSelected: {
-    color: '#5050FF',
-    fontWeight: '500',
-  },
-  staffRole: {
-    fontSize: 13,
-    color: '#999',
-  },
-  checkmark: {
-    fontSize: 20,
-    color: '#5050FF',
-    fontWeight: 'bold',
+    fontWeight: '700',
   },
   loadingContainer: {
-    paddingVertical: 40,
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  emptyContainer: {
-    paddingVertical: 40,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#999',
-  },
-  selectedCountContainer: {
-    backgroundColor: '#E8E3FF',
+    justifyContent: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginBottom: 20,
   },
-  selectedCountText: {
+  loadingText: {
+    marginLeft: 8,
+    color: '#666',
     fontSize: 14,
-    color: '#5050FF',
-    fontWeight: '500',
-    textAlign: 'center',
   },
-  buttonContainer: {
-    paddingVertical: 20,
+  selectButton: {
+    backgroundColor: '#000',
+    paddingVertical: 14,
+    borderRadius: 24,
     alignItems: 'center',
+    marginTop: 24,
   },
-  continueButton: {
-    backgroundColor: '#2C2C2E',
-    paddingVertical: 16,
-    paddingHorizontal: 40,
-    borderRadius: 25,
-    width: '80%',
-    alignItems: 'center',
+  selectButtonDisabled: {
+    backgroundColor: '#ccc',
   },
-  continueButtonDisabled: {
-    backgroundColor: '#CCCCCC',
-  },
-  continueButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
+  selectButtonText: {
+    color: '#fff',
     fontWeight: '600',
+    fontSize: 16,
   },
 });
-
-export default StaffManagement;

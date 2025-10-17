@@ -1,133 +1,240 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, Alert, Dimensions } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Dimensions, ActivityIndicator } from 'react-native';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { supabase } from '@/services/supabase';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 
 type RootStackParamList = {
   RouteManagement: { id?: string; location?: string; status?: 'Pendiente' | 'En curso' | 'Finalizada'; participant_id?: string } | undefined;
+  RouteDetails: { routeId: string; routeName: string };
 };
 
 type Props = NativeStackScreenProps<RootStackParamList, 'RouteManagement'>;
 
-export default function RouteManagement({ route, navigation }: Props) {
-  const { id, location } = route.params || {};
-  const status = (route.params as any)?.status as 'Pendiente' | 'En curso' | 'Finalizada' | undefined;
-  const participantIdParam = (route.params as any)?.participant_id as string | undefined;
-  
-  const [routeName, setRouteName] = useState<string | undefined>(location);
-  const [loadingRoute, setLoadingRoute] = useState(false);
-  const [isRegistered, setIsRegistered] = useState<boolean | null>(null);
-  const [participantId, setParticipantId] = useState<string | null>(participantIdParam ?? null);
-  const [routeDetails, setRouteDetails] = useState<{ route_date?: string; start_time?: string | null; end_time?: string | null } | null>(null);
+interface Route {
+  id: string;
+  name: string;
+  description?: string;
+  route_date?: string;
+  start_time?: string;
+  end_time?: string;
+}
 
-  // Dropdown / Zonas de entrega
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [selectedZone, setSelectedZone] = useState<string | null>(null);
-  const zones = Array.from({ length: 5 }, (_, i) => `Nombre / ID ruta ${i + 1}`);
+interface RouteStop {
+  id: string;
+  route_id: string;
+  name: string;
+  address?: string;
+  latitude: number;
+  longitude: number;
+  stop_order?: number;
+}
+
+interface StaffUser {
+  id: string;
+  full_name: string;
+  phone?: string;
+}
+
+export default function RouteManagement({ route, navigation }: Props) {
   const windowHeight = Dimensions.get('window').height;
 
-  // Load route details from DB
-  React.useEffect(() => {
+  // State para rutas y stops
+  const [routes, setRoutes] = useState<Route[]>([]);
+  const [routeStops, setRouteStops] = useState<RouteStop[]>([]);
+  const [loadingRoutes, setLoadingRoutes] = useState(true);
+  const [loadingStops, setLoadingStops] = useState(false);
+
+  // State para staff
+  const [staffUsers, setStaffUsers] = useState<StaffUser[]>([]);
+  const [loadingStaff, setLoadingStaff] = useState(true);
+  const [selectedStaff, setSelectedStaff] = useState<StaffUser | null>(null);
+
+  // Dropdown state
+  const [routeDropdownOpen, setRouteDropdownOpen] = useState(false);
+  const [staffDropdownOpen, setStaffDropdownOpen] = useState(false);
+  const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
+
+  // Map state
+  const [mapRegion, setMapRegion] = useState({
+    latitude: 20.6597,
+    longitude: -103.3496,
+    latitudeDelta: 0.1,
+    longitudeDelta: 0.1,
+  });
+
+  // Cargar todas las rutas disponibles
+  useEffect(() => {
     let mounted = true;
     (async () => {
-      if (!id || location) return;
       try {
-        setLoadingRoute(true);
+        setLoadingRoutes(true);
         const { data, error } = await supabase
           .from('routes')
-          .select('name, route_date, start_time, end_time')
-          .eq('id', String(id))
-          .single();
-        
+          .select('id, name, description, route_date, start_time, end_time')
+          .order('route_date', { ascending: false });
+
         if (error) {
-          console.warn('Could not fetch route details', error);
-        } else if (mounted) {
-          setRouteName(data?.name ?? undefined);
-          setRouteDetails({ 
-            route_date: data?.route_date, 
-            start_time: data?.start_time ?? null, 
-            end_time: data?.end_time ?? null 
-          });
+          console.warn('Error cargando rutas:', error);
+          Alert.alert('Error', 'No se pudieron cargar las rutas');
+        } else if (mounted && data) {
+          setRoutes(data);
         }
       } catch (e) {
-        console.warn('Exception fetching route', e);
+        console.warn('Excepción cargando rutas:', e);
       } finally {
-        if (mounted) setLoadingRoute(false);
+        if (mounted) setLoadingRoutes(false);
       }
     })();
     return () => { mounted = false; };
-  }, [id, location]);
+  }, []);
 
-  // Check whether current user is registered for this route
-  React.useEffect(() => {
+  // Cargar staff users
+  useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const { data: { user }, error: userError } = await supabase.auth.getUser();
-        if (userError || !user) {
-          if (mounted) setIsRegistered(false);
-          return;
-        }
+        setLoadingStaff(true);
+        const { data, error } = await supabase
+          .from('users')
+          .select('id, full_name, phone')
+          .eq('role', 'staff')
+          .order('full_name', { ascending: true });
 
-        if (participantIdParam) {
-          const { data: rp, error: rpError } = await supabase
-            .from('route_participants')
-            .select('id, user_id')
-            .eq('id', participantIdParam)
-            .single();
-          
-          if (!rp || rpError) {
-            if (mounted) setIsRegistered(false);
-            return;
-          }
-          if (mounted) {
-            setParticipantId(rp.id ?? null);
-            setIsRegistered(Boolean(rp.user_id === user.id));
-          }
-          return;
-        }
-
-        const { data: found, error: findError } = await supabase
-          .from('route_participants')
-          .select('id, user_id')
-          .eq('route_id', id)
-          .eq('user_id', user.id)
-          .single();
-        
-        if (found && !findError) {
-          if (mounted) {
-            setParticipantId(found.id);
-            setIsRegistered(true);
-          }
-        } else if (mounted) {
-          setIsRegistered(false);
+        if (error) {
+          console.warn('Error cargando staff:', error);
+        } else if (mounted && data) {
+          setStaffUsers(data);
         }
       } catch (e) {
-        console.warn('Error checking registration', e);
-        if (mounted) setIsRegistered(false);
+        console.warn('Excepción cargando staff:', e);
+      } finally {
+        if (mounted) setLoadingStaff(false);
       }
     })();
     return () => { mounted = false; };
-  }, [id, participantIdParam]);
+  }, []);
 
-  const handleSelectPress = () => {
-    if (!selectedZone) {
-      Alert.alert('Atención', 'Por favor selecciona una zona de entrega');
+  // Cargar stops cuando se selecciona una ruta
+  useEffect(() => {
+    let mounted = true;
+    if (!selectedRoute) {
+      setRouteStops([]);
       return;
     }
-    Alert.alert('Seleccionado', `Has seleccionado: ${selectedZone}`);
-    // Aquí puedes agregar la lógica adicional que necesites
+
+    (async () => {
+      try {
+        setLoadingStops(true);
+        const { data, error } = await supabase
+          .from('route_stops')
+          .select('id, route_id, name, address, latitude, longitude, stop_order')
+          .eq('route_id', selectedRoute.id)
+          .order('stop_order', { ascending: true });
+
+        if (error) {
+          console.warn('Error cargando stops:', error);
+        } else if (mounted && data) {
+          setRouteStops(data);
+
+          // Centrar mapa en el primer stop
+          if (data.length > 0) {
+            setMapRegion({
+              latitude: data[0].latitude,
+              longitude: data[0].longitude,
+              latitudeDelta: 0.05,
+              longitudeDelta: 0.05,
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Excepción cargando stops:', e);
+      } finally {
+        if (mounted) setLoadingStops(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [selectedRoute]);
+
+  const handleAssignStaff = async () => {
+    if (!selectedRoute) {
+      Alert.alert('Atención', 'Por favor selecciona una ruta');
+      return;
+    }
+
+    if (!selectedStaff) {
+      Alert.alert('Atención', 'Por favor selecciona un miembro del staff');
+      return;
+    }
+
+    try {
+      // Insertar participante en route_participants
+      const { error } = await supabase
+        .from('route_participants')
+        .insert({
+          route_id: selectedRoute.id,
+          user_id: selectedStaff.id,
+          assigned_at: new Date().toISOString(),
+        });
+
+      if (error) {
+        console.warn('Error asignando staff:', error);
+        Alert.alert('Error', 'No se pudo asignar el staff a la ruta');
+      } else {
+        Alert.alert(
+          'Éxito',
+          `${selectedStaff.full_name} ha sido asignado(a) a ${selectedRoute.name}`,
+          [
+            {
+              text: 'Ver detalles',
+              onPress: () => navigation.navigate('RouteDetails', {
+                routeId: selectedRoute.id,
+                routeName: selectedRoute.name,
+              }),
+            },
+            { text: 'OK' }
+          ]
+        );
+        // Limpiar selección
+        setSelectedStaff(null);
+      }
+    } catch (e) {
+      console.warn('Excepción asignando staff:', e);
+      Alert.alert('Error', 'Ocurrió un error al asignar el staff');
+    }
   };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      {/* Image full width and half screen height with back button overlay */}
-      <View style={[styles.mapPlaceholder, { height: windowHeight * 0.5 }]}>
-        <Image
-          source={require('../../../../assets/map_stock_img.png')}
-          style={styles.mapImage}
-          resizeMode="cover"
-        />
+      {/* Mapa con marcadores */}
+      <View style={[styles.mapContainer, { height: windowHeight * 0.4 }]}>
+        <MapView
+          provider={PROVIDER_GOOGLE}
+          style={styles.map}
+          region={mapRegion}
+          onRegionChangeComplete={setMapRegion}
+        >
+          {routeStops.map((stop, index) => (
+            <Marker
+              key={stop.id}
+              coordinate={{
+                latitude: stop.latitude,
+                longitude: stop.longitude,
+              }}
+              title={stop.name}
+              description={stop.address}
+              pinColor={selectedRoute ? '#FF6B35' : '#4A90E2'}
+            >
+              <View style={[
+                styles.customMarker,
+                { backgroundColor: selectedRoute ? '#FF6B35' : '#4A90E2' }
+              ]}>
+                <Text style={styles.markerText}>{index + 1}</Text>
+              </View>
+            </Marker>
+          ))}
+        </MapView>
+
         <TouchableOpacity
           style={styles.overlayBackButton}
           onPress={() => navigation.goBack()}
@@ -137,74 +244,205 @@ export default function RouteManagement({ route, navigation }: Props) {
         </TouchableOpacity>
       </View>
 
-      {/* Route Name */}
-      {loadingRoute ? (
-        <Text style={styles.title}>Cargando...</Text>
-      ) : (
-        <Text style={styles.title}>{routeName || 'Ruta sin nombre'}</Text>
-      )}
+      {/* Título */}
+      <Text style={styles.title}>Asignar Staff a Ruta</Text>
 
-      {/* Route Details */}
-      {routeDetails && (
+      {/* Dropdown de rutas */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Selecciona una ruta *</Text>
+        <View style={styles.dropdownContainer}>
+          <TouchableOpacity
+            style={styles.dropdownToggle}
+            onPress={() => setRouteDropdownOpen((s) => !s)}
+            disabled={loadingRoutes}
+          >
+            <View style={styles.dropdownToggleContent}>
+              <Text style={[styles.dropdownLabel, !selectedRoute && styles.placeholderText]}>
+                {loadingRoutes 
+                  ? 'Cargando rutas...' 
+                  : selectedRoute 
+                    ? selectedRoute.name 
+                    : 'Selecciona una ruta'}
+              </Text>
+              {loadingRoutes ? (
+                <ActivityIndicator size="small" color="#666" />
+              ) : (
+                <Text style={[styles.dropdownArrow, routeDropdownOpen && styles.dropdownArrowOpen]}>
+                  {routeDropdownOpen ? '▴' : '▾'}
+                </Text>
+              )}
+            </View>
+          </TouchableOpacity>
+
+          {routeDropdownOpen && !loadingRoutes && (
+            <View style={styles.dropdownList}>
+              <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
+                {routes.length === 0 ? (
+                  <View style={styles.dropdownItem}>
+                    <Text style={styles.placeholderText}>No hay rutas disponibles</Text>
+                  </View>
+                ) : (
+                  routes.map((r) => (
+                    <TouchableOpacity
+                      key={r.id}
+                      style={[
+                        styles.dropdownItem,
+                        selectedRoute?.id === r.id && styles.dropdownItemSelected
+                      ]}
+                      onPress={() => {
+                        setSelectedRoute(r);
+                        setRouteDropdownOpen(false);
+                      }}
+                    >
+                      <Text style={[
+                        styles.dropdownItemText,
+                        selectedRoute?.id === r.id && styles.dropdownItemTextSelected
+                      ]}>
+                        {r.name}
+                      </Text>
+                      {r.route_date && (
+                        <Text style={styles.dropdownItemSubtext}>
+                          {r.route_date}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  ))
+                )}
+              </ScrollView>
+            </View>
+          )}
+        </View>
+      </View>
+
+      {/* Detalles de la ruta seleccionada */}
+      {selectedRoute && (
         <View style={styles.detailsContainer}>
+          {selectedRoute.description && (
+            <Text style={styles.detailText}>
+              {selectedRoute.description}
+            </Text>
+          )}
           <Text style={styles.detailText}>
-            Fecha: {routeDetails.route_date ?? '-'}
+            Fecha: {selectedRoute.route_date ?? '-'}
           </Text>
           <Text style={styles.detailText}>
-            Hora: {routeDetails.start_time 
-              ? `${routeDetails.start_time.slice(0, 5)}${routeDetails.end_time ? ` - ${routeDetails.end_time.slice(0, 5)}` : ''}` 
+            Hora: {selectedRoute.start_time 
+              ? `${selectedRoute.start_time.slice(0, 5)}${selectedRoute.end_time ? ` - ${selectedRoute.end_time.slice(0, 5)}` : ''}` 
               : '-'
             }
+          </Text>
+          <Text style={styles.detailText}>
+            Puntos de entrega: {routeStops.length}
           </Text>
         </View>
       )}
 
-      {/* Dropdown Zonas de entrega */}
-      <View style={styles.dropdownContainer}>
-        <TouchableOpacity
-          style={styles.dropdownToggle}
-          onPress={() => setDropdownOpen((s) => !s)}
-        >
-          <View style={styles.dropdownToggleContent}>
-            <Text style={[styles.dropdownLabel, !selectedZone && styles.placeholderText]}>
-              {selectedZone ?? 'Zonas de entrega'}
-            </Text>
-            <Text style={[styles.dropdownArrow, dropdownOpen && styles.dropdownArrowOpen]}>
-              {dropdownOpen ? '▴' : '▾'}
-            </Text>
-          </View>
-        </TouchableOpacity>
-        {dropdownOpen && (
-          <View style={styles.dropdownList}>
-            {zones.map((z) => (
-              <TouchableOpacity
-                key={z}
-                style={[
-                  styles.dropdownItem,
-                  selectedZone === z && styles.dropdownItemSelected
-                ]}
-                onPress={() => {
-                  setSelectedZone(z);
-                  setDropdownOpen(false);
-                }}
-              >
-                <Text style={selectedZone === z && styles.dropdownItemTextSelected}>
-                  {z}
+      {/* Indicador de carga de stops */}
+      {loadingStops && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="small" color="#666" />
+          <Text style={styles.loadingText}>Cargando puntos de entrega...</Text>
+        </View>
+      )}
+
+      {/* Dropdown de Staff */}
+      <View style={styles.section}>
+        <Text style={styles.sectionLabel}>Selecciona staff *</Text>
+        <View style={styles.dropdownContainer}>
+          <TouchableOpacity
+            style={styles.dropdownToggle}
+            onPress={() => setStaffDropdownOpen((s) => !s)}
+            disabled={loadingStaff}
+          >
+            <View style={styles.dropdownToggleContent}>
+              <Text style={[styles.dropdownLabel, !selectedStaff && styles.placeholderText]}>
+                {loadingStaff 
+                  ? 'Cargando staff...' 
+                  : selectedStaff
+                    ? selectedStaff.full_name
+                    : 'Selecciona un miembro del staff'}
+              </Text>
+              {loadingStaff ? (
+                <ActivityIndicator size="small" color="#666" />
+              ) : (
+                <Text style={[styles.dropdownArrow, staffDropdownOpen && styles.dropdownArrowOpen]}>
+                  {staffDropdownOpen ? '▴' : '▾'}
                 </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+              )}
+            </View>
+          </TouchableOpacity>
+
+          {staffDropdownOpen && !loadingStaff && (
+            <View style={styles.dropdownList}>
+              <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
+                {staffUsers.length === 0 ? (
+                  <View style={styles.dropdownItem}>
+                    <Text style={styles.placeholderText}>No hay staff disponible</Text>
+                  </View>
+                ) : (
+                  staffUsers.map((staff) => (
+                    <TouchableOpacity
+                      key={staff.id}
+                      style={[
+                        styles.dropdownItem,
+                        selectedStaff?.id === staff.id && styles.dropdownItemSelected
+                      ]}
+                      onPress={() => {
+                        setSelectedStaff(staff);
+                        setStaffDropdownOpen(false);
+                      }}
+                    >
+                      <View style={styles.staffInfo}>
+                        <Text style={[
+                          styles.dropdownItemText,
+                          selectedStaff?.id === staff.id && styles.dropdownItemTextSelected
+                        ]}>
+                          {staff.full_name}
+                        </Text>
+                        {staff.phone && (
+                          <Text style={styles.dropdownItemSubtext}>
+                            {staff.phone}
+                          </Text>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  ))
+                )}
+              </ScrollView>
+            </View>
+          )}
+        </View>
       </View>
 
-      {/* Botón Seleccionar */}
+      {/* Staff seleccionado */}
+      {selectedStaff && (
+        <View style={styles.selectedStaffContainer}>
+          <Text style={styles.selectedStaffTitle}>Staff seleccionado:</Text>
+          <View style={styles.selectedStaffItem}>
+            <Text style={styles.selectedStaffName}>{selectedStaff.full_name}</Text>
+            <TouchableOpacity
+              onPress={() => setSelectedStaff(null)}
+              style={styles.removeButton}
+            >
+              <Text style={styles.removeButtonText}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Botón Asignar Staff */}
       <TouchableOpacity
-        style={[styles.selectButton, !selectedZone && styles.selectButtonDisabled]}
-        onPress={handleSelectPress}
+        style={[
+          styles.selectButton,
+          (!selectedRoute || !selectedStaff) && styles.selectButtonDisabled
+        ]}
+        onPress={handleAssignStaff}
         activeOpacity={0.8}
-        disabled={!selectedZone}
+        disabled={!selectedRoute || !selectedStaff}
       >
-        <Text style={styles.selectButtonText}>Seleccionar</Text>
+        <Text style={styles.selectButtonText}>
+          Asignar Staff a Ruta
+        </Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -220,20 +458,46 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '700',
     color: '#222',
-    marginBottom: 12,
+    marginBottom: 16,
   },
-  mapPlaceholder: {
+  section: {
+    marginBottom: 20,
+  },
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#444',
+    marginBottom: 8,
+  },
+  mapContainer: {
     backgroundColor: '#fff',
     borderRadius: 12,
     overflow: 'hidden',
     width: '100%',
     marginBottom: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
-  mapImage: {
+  map: {
     width: '100%',
     height: '100%',
+  },
+  customMarker: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  markerText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
   },
   overlayBackButton: {
     position: 'absolute',
@@ -244,9 +508,9 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(187, 183, 183, 0.55)',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     zIndex: 20,
-    shadowColor: 'rgba(187, 183, 183, 0.55)',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
@@ -260,7 +524,9 @@ const styles = StyleSheet.create({
     lineHeight: 34,
   },
   detailsContainer: {
-    paddingVertical: 8,
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 8,
     marginBottom: 16,
   },
   detailText: {
@@ -269,7 +535,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   dropdownContainer: {
-    marginBottom: 16,
+    zIndex: 1000,
   },
   dropdownToggle: {
     backgroundColor: '#fff',
@@ -307,6 +573,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#eee',
     overflow: 'hidden',
+    maxHeight: 200,
+  },
+  dropdownScroll: {
+    maxHeight: 200,
   },
   dropdownItem: {
     paddingVertical: 12,
@@ -317,9 +587,76 @@ const styles = StyleSheet.create({
   dropdownItemSelected: {
     backgroundColor: '#f0f0f0',
   },
+  dropdownItemText: {
+    fontSize: 15,
+    color: '#222',
+  },
   dropdownItemTextSelected: {
     fontWeight: '600',
     color: '#000',
+  },
+  dropdownItemSubtext: {
+    fontSize: 12,
+    color: '#999',
+    marginTop: 2,
+  },
+  staffItemContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  staffInfo: {
+    flex: 1,
+  },
+  selectedStaffContainer: {
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  selectedStaffTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#444',
+    marginBottom: 8,
+  },
+  selectedStaffItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 6,
+    marginBottom: 6,
+  },
+  selectedStaffName: {
+    fontSize: 14,
+    color: '#222',
+    flex: 1,
+  },
+  removeButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#ff4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  removeButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+  },
+  loadingText: {
+    marginLeft: 8,
+    color: '#666',
+    fontSize: 14,
   },
   selectButton: {
     backgroundColor: '#000',
