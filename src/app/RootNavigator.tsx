@@ -43,7 +43,7 @@ function AuthNavigator() {
 }
 
 export default function RootNavigator() {
-  const DEV_MODE = true;
+  const DEV_MODE = false;
 
   const { user, loading: authLoading } = useAuth();
   const { role, loading: roleLoading } = useRole();
