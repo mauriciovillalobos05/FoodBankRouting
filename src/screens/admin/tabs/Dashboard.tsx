@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,34 +6,139 @@ import {
   ScrollView,
   TouchableOpacity,
   SafeAreaView,
-  Image
+  Image,
+  ActivityIndicator
 } from 'react-native';
+import { supabase } from '@/services/supabase';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+
+type RootStackParamList = {
+  RouteDetails: { routeId: string; routeName: string };
+};
+
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+
+interface Route {
+  id: string;
+  name: string;
+  description?: string;
+  route_date: string;
+  start_time?: string;
+  end_time?: string;
+  created_at: string;
+}
+
+interface RouteWithStatus extends Route {
+  status: 'Pendiente' | 'En curso' | 'Finalizada';
+}
 
 const Home = () => {
-  // Datos mock para el template
-  const statsData = {
+  const navigation = useNavigation<NavigationProp>();
+  
+  const [loading, setLoading] = useState(true);
+  const [routes, setRoutes] = useState<RouteWithStatus[]>([]);
+  const [stats, setStats] = useState({
     totalRutasHoy: 0,
     rutasCompletadas: 0,
     rutasSinFinalizar: 0,
+  });
+
+  useEffect(() => {
+    loadRoutes();
+  }, []);
+
+  const loadRoutes = async () => {
+    try {
+      setLoading(true);
+
+      // Obtener todas las rutas
+      const { data: allRoutes, error: routesError } = await supabase
+        .from('routes')
+        .select('*')
+        .order('route_date', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (routesError) {
+        console.warn('Error cargando rutas:', routesError);
+        return;
+      }
+
+      if (!allRoutes) {
+        setRoutes([]);
+        return;
+      }
+
+      // Obtener todos los route_participants
+      const { data: participants, error: participantsError } = await supabase
+        .from('route_participants')
+        .select('route_id, user_id');
+
+      if (participantsError) {
+        console.warn('Error cargando participantes:', participantsError);
+      }
+
+      // Crear un Set de route_ids que tienen staff asignado
+      const routesWithStaff = new Set(
+        participants?.map(p => p.route_id) || []
+      );
+
+      // Clasificar rutas por estado
+      const routesWithStatus: RouteWithStatus[] = allRoutes.map(route => {
+        const hasStaff = routesWithStaff.has(route.id);
+        const hasEndTime = !!route.end_time;
+
+        let status: 'Pendiente' | 'En curso' | 'Finalizada';
+        
+        // Prioridad: primero verificar si está finalizada
+        if (hasEndTime) {
+          status = 'Finalizada';
+        } 
+        // Luego verificar si tiene staff asignado (en curso)
+        else if (hasStaff) {
+          status = 'En curso';
+        } 
+        // Si no tiene ni staff ni hora de fin, está pendiente
+        else {
+          status = 'Pendiente';
+        }
+
+        return {
+          ...route,
+          status,
+        };
+      });
+
+      setRoutes(routesWithStatus);
+
+      // Calcular estadísticas (rutas de hoy)
+      const today = new Date().toISOString().split('T')[0];
+      const rutasHoy = routesWithStatus.filter(r => r.route_date === today);
+      
+      setStats({
+        totalRutasHoy: rutasHoy.length,
+        rutasCompletadas: rutasHoy.filter(r => r.status === 'Finalizada').length,
+        rutasSinFinalizar: rutasHoy.filter(r => r.status !== 'Finalizada').length,
+      });
+
+    } catch (e) {
+      console.warn('Excepción cargando rutas:', e);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const rutasData = [
-    {
-      id: 1,
-      status: 'Pendiente',
-      location: 'Barrio Santiago Norte',
-    },
-    {
-      id: 2,
-      status: 'En curso',
-      location: 'Barrio Santiago Norte',
-    },
-    {
-      id: 3,
-      status: 'Finalizada',
-      location: 'Barrio Santiago Norte',
-    },
-  ];
+  const handleVerDetalles = (route: RouteWithStatus) => {
+    navigation.navigate('RouteDetails', {
+      routeId: route.id,
+      routeName: route.name,
+    });
+  };
+
+  const handleImprimirPDF = (route: RouteWithStatus) => {
+    // TODO: Implementar generación de PDF
+    alert(`Imprimir PDF para: ${route.name}`);
+  };
 
   const renderStatsCard = (title: string, value: number, color: string) => (
     <View style={[styles.statsCard, { backgroundColor: color }]}>
@@ -42,7 +147,7 @@ const Home = () => {
     </View>
   );
 
-  const renderRouteItem = (ruta: any) => {
+  const renderRouteItem = (ruta: RouteWithStatus) => {
     const getStatusColor = (status: string) => {
       switch (status) {
         case 'Pendiente':
@@ -53,27 +158,6 @@ const Home = () => {
           return '#00953B';
         default:
           return '#5C5C60';
-      }
-    };
-
-    const getActionButtons = (status: string) => {
-      if (status === 'Finalizada') {
-        return (
-          <View style={styles.routeActions}>
-            <TouchableOpacity style={styles.detailsButton}>
-              <Text style={styles.detailsButtonText}>Ver detalles</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.pdfButton}>
-              <Text style={styles.pdfButtonText}>Imprimir PDF</Text>
-            </TouchableOpacity>
-          </View>
-        );
-      } else {
-        return (
-          <TouchableOpacity style={styles.detailsButton}>
-            <Text style={styles.detailsButtonText}>Ver detalles</Text>
-          </TouchableOpacity>
-        );
       }
     };
 
@@ -88,13 +172,40 @@ const Home = () => {
             source={require('../../../assets/location_icon.png')}
             style={styles.locationIcon}
           />
-          <Text style={styles.routeLocation}>{ruta.location}</Text>
+          <Text style={styles.routeLocation}>{ruta.name}</Text>
         </View>
 
-        {getActionButtons(ruta.status)}
+        {ruta.description && (
+          <Text style={styles.routeDescription} numberOfLines={2}>
+            {ruta.description}
+          </Text>
+        )}
+
+        <View style={styles.routeActions}>
+          <TouchableOpacity 
+            style={styles.detailsButton}
+            onPress={() => handleVerDetalles(ruta)}
+          >
+            <Text style={styles.detailsButtonText}>ver detalles</Text>
+          </TouchableOpacity>
+          
+          {ruta.status === 'Finalizada' && (
+            <TouchableOpacity 
+              style={[styles.actionButton, { backgroundColor: '#00953B' }]}
+              onPress={() => handleImprimirPDF(ruta)}
+            >
+              <Text style={styles.actionButtonText}>Imprimir PDF</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     );
   };
+
+  // Separar rutas por estado
+  const rutasPendientes = routes.filter(r => r.status === 'Pendiente');
+  const rutasEnCurso = routes.filter(r => r.status === 'En curso');
+  const rutasFinalizadas = routes.filter(r => r.status === 'Finalizada');
 
   return (
     <SafeAreaView style={styles.container}>
@@ -108,38 +219,69 @@ const Home = () => {
         <View style={styles.statsContainer}>
           <View style={styles.mainStatsCard}>
             <Text style={styles.mainStatsTitle}>Total de rutas hoy</Text>
-            <Text style={styles.mainStatsValue}>{statsData.totalRutasHoy}</Text>
+            <Text style={styles.mainStatsValue}>{stats.totalRutasHoy}</Text>
           </View>
 
           <View style={styles.statsRow}>
             {renderStatsCard(
               'Rutas completadas',
-              statsData.rutasCompletadas,
+              stats.rutasCompletadas,
               '#E8F5E8'
             )}
             {renderStatsCard(
               'Rutas sin finalizar',
-              statsData.rutasSinFinalizar,
+              stats.rutasSinFinalizar,
               '#FFF3E0'
             )}
           </View>
         </View>
 
-        {/* Action Buttons */}
-        <View style={styles.actionButtonsContainer}>
-          <TouchableOpacity style={styles.addRouteButton}>
-            <Text style={styles.addRouteButtonText}>Agregar ruta</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity style={styles.manageRoutesButton}>
-            <Text style={styles.manageRoutesButtonText}>Administrar Rutas</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Loading State */}
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#5050FF" />
+            <Text style={styles.loadingText}>Cargando rutas...</Text>
+          </View>
+        ) : (
+          <>
+            {/* Rutas Pendientes */}
+            {rutasPendientes.length > 0 && (
+              <View style={styles.routesSection}>
+                <Text style={styles.sectionTitle}>Pendientes</Text>
+                <View style={styles.routesContainer}>
+                  {rutasPendientes.map(renderRouteItem)}
+                </View>
+              </View>
+            )}
 
-        {/* Routes List */}
-        <View style={styles.routesContainer}>
-          {rutasData.map(renderRouteItem)}
-        </View>
+            {/* Rutas En Curso */}
+            {rutasEnCurso.length > 0 && (
+              <View style={styles.routesSection}>
+                <Text style={styles.sectionTitle}>En curso</Text>
+                <View style={styles.routesContainer}>
+                  {rutasEnCurso.map(renderRouteItem)}
+                </View>
+              </View>
+            )}
+
+            {/* Rutas Finalizadas */}
+            {rutasFinalizadas.length > 0 && (
+              <View style={styles.routesSection}>
+                <Text style={styles.sectionTitle}>Finalizadas</Text>
+                <View style={styles.routesContainer}>
+                  {rutasFinalizadas.map(renderRouteItem)}
+                </View>
+              </View>
+            )}
+
+            {/* Empty State */}
+            {routes.length === 0 && (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyStateText}>No hay rutas disponibles</Text>
+              </View>
+            )}
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -209,8 +351,28 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#000000',
   },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#5C5C60',
+  },
+  routesSection: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#222',
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
   routesContainer: {
-    marginBottom: 20,
+    marginBottom: 0,
   },
   routeItem: {
     backgroundColor: '#FFFFFF',
@@ -234,29 +396,35 @@ const styles = StyleSheet.create({
   routeLocationContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   locationIcon: {
-    width: 12,
-    height: 12,
+    width: 16,
+    height: 16,
     marginRight: 6,
   },
   routeLocation: {
     fontSize: 14,
     color: '#5C5C60',
+    fontWeight: '500',
+  },
+  routeDescription: {
+    fontSize: 13,
+    color: '#888',
+    marginBottom: 12,
+    lineHeight: 18,
   },
   routeActions: {
     flexDirection: 'row',
-    justifyContent: 'flex-start',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
   },
   detailsButton: {
     backgroundColor: '#5050FF',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 20,
-    alignSelf: 'flex-start',
   },
   detailsButtonText: {
     color: '#FFFFFF',
@@ -273,47 +441,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
   },
-  actionButtonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 24,
-    gap: 12,
-  },
-  addRouteButton: {
-    flex: 1,
-    backgroundColor: '#5050FF',
-    paddingVertical: 12,
-    borderRadius: 8,
+  emptyState: {
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
   },
-  addRouteButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  manageRoutesButton: {
-    flex: 1,
-    backgroundColor: '#5C5C60',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  manageRoutesButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  pdfButton: {
-    backgroundColor: '#00953B',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-    alignSelf: 'flex-start',
-  },
-  pdfButtonText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '500',
+  emptyStateText: {
+    fontSize: 16,
+    color: '#999',
   },
 });
 
