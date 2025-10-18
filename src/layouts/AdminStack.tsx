@@ -8,6 +8,7 @@ import UsersManagement from '../screens/admin/tabs/UsersManagement';
 import StaffManagement from '../screens/admin/admin_functions/staff_assign/StaffManagement';
 import StaffRegisterEmail from '../screens/admin/admin_functions/staff_assign/StaffRegisterEmail';
 import StaffRegisterDetails from '../screens/admin/admin_functions/staff_assign/StaffRegisterDetails';
+import RouteManagement from '@/screens/admin/admin_functions/routes/RouteManagement';
 
 const Tab = createBottomTabNavigator();
 const UserStack = createNativeStackNavigator();
@@ -16,7 +17,7 @@ function UsersStackNavigator() {
   return (
     <UserStack.Navigator screenOptions={{ headerShown: false }}>
       <UserStack.Screen name="UsersMain" component={UsersManagement} />
-      <UserStack.Screen name="StaffManagement" component={StaffManagement} />
+      <UserStack.Screen name="RouteManagement" component={RouteManagement} />
       <UserStack.Screen name="StaffRegisterEmail" component={StaffRegisterEmail} />
       <UserStack.Screen name="StaffRegisterDetails" component={StaffRegisterDetails} />
     </UserStack.Navigator>
