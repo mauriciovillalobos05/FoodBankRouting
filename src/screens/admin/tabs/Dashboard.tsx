@@ -212,7 +212,7 @@ const Home = () => {
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Panel Staff - Banco de Alimentos</Text>
+          <Text style={styles.headerTitle}>Panel Admin - Banco de Alimentos</Text>
         </View>
 
         {/* Stats Cards */}

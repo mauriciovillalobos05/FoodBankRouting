@@ -60,13 +60,6 @@ export default function App() {
           <Stack.Screen name="Profile" component={Profile} />
           <Stack.Screen name="Verify" component={Verify} />
           <Stack.Screen name="Root" component={RootNavigator} />
-          <Stack.Screen name="Home" component={Home} />
-          <Stack.Screen name="UsuariosAdmin" component={UsuariosAdmin} />
-          <Stack.Screen name="StaffRegisterDetails" component={StaffRegisterDetails} />
-          <Stack.Screen name="StaffManagement" component={StaffManagement} />
-          <Stack.Screen name="RouteDetails" component={RouteDetails} />
-          <Stack.Screen name="RouteManagement" component={RouteManagement} />
-          <Stack.Screen name="RouteForm" component={RouteForm} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

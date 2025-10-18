@@ -12,16 +12,16 @@ import StaffRegisterDetails from '../screens/admin/admin_functions/staff_assign/
 const Tab = createBottomTabNavigator();
 const UserStack = createNativeStackNavigator();
 
-function UsersStackNavigator() {
-  return (
-    <UserStack.Navigator screenOptions={{ headerShown: false }}>
-      <UserStack.Screen name="UsersMain" component={UsersManagement} />
-      <UserStack.Screen name="StaffManagement" component={StaffManagement} />
-      <UserStack.Screen name="StaffRegisterEmail" component={StaffRegisterEmail} />
-      <UserStack.Screen name="StaffRegisterDetails" component={StaffRegisterDetails} />
-    </UserStack.Navigator>
-  );
-}
+// function UsersStackNavigator() {
+//   return (
+//     <UserStack.Navigator screenOptions={{ headerShown: false }}>
+//       <UserStack.Screen name="UsersMain" component={UsersManagement} />
+//       <UserStack.Screen name="StaffManagement" component={StaffManagement} />
+//       <UserStack.Screen name="StaffRegisterEmail" component={StaffRegisterEmail} />
+//       <UserStack.Screen name="StaffRegisterDetails" component={StaffRegisterDetails} />
+//     </UserStack.Navigator>
+//   );
+// }
 
 export default function AdminStack(){
     return (
@@ -50,7 +50,7 @@ export default function AdminStack(){
             />
             <Tab.Screen 
                 name="Usuarios" 
-                component={UsersStackNavigator}
+                component={UsersManagement}
                 options={{
                     tabBarIcon: ({ focused }) => (
                         <Image
