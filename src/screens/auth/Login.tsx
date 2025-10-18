@@ -90,7 +90,7 @@ export default function Login() {
     <View style={styles.container}>
       <View style={styles.logoContainer}>
         <Image 
-          source={require('../../../assets/full_logo_bda.png')} 
+          source={require('../../assets/full_logo_bda.png')} 
           style={styles.logoImage}
           resizeMode="contain"
         />
