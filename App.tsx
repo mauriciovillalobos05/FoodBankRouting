@@ -7,6 +7,7 @@ import * as Linking from 'expo-linking';
 
 import SplashScreen from './src/components/ui/SplashScreen';
 import Login from '@/screens/auth/Login';
+import Confirmacion from '@/screens/auth/OTP';
 import Verify from '@/screens/auth/Verify';
 import Profile from '@/screens/staff/tabs/Profile';
 import RootNavigator from './src/app/RootNavigator';
@@ -24,6 +25,7 @@ const linking = {
       Register: 'register',
       AuthCallback: 'auth-callback',
       Profile: 'profile',
+      Confirmacion: 'otp',
       Root: '*',
     },
   },
@@ -92,6 +94,7 @@ export default function App() {
             <Stack.Screen name="Verify" component={Verify} />
             <Stack.Screen name="Profile" component={Profile} />
             <Stack.Screen name="Root" component={RootNavigator} />
+            <Stack.Screen name="Confirmacion" component={Confirmacion} />
           </Stack.Navigator>
         </NavigationContainer>
       </AuthProvider>

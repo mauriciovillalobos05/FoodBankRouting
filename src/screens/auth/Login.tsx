@@ -11,7 +11,6 @@ import {
 } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { supabase } from "@/services/supabase";
-import * as Linking from "expo-linking";
 
 // Variable global para controlar si ya se limpió la sesión
 let sessionCleared = false;
@@ -28,7 +27,6 @@ export default function Login() {
   // Limpiar toda la memoria y sesión SOLO la primera vez que se monta
   useEffect(() => {
     const clearAllMemory = async () => {
-      // Si ya se limpió en esta instancia del componente o globalmente, no hacerlo de nuevo
       if (hasCleared.current || sessionCleared) {
         return;
       }
@@ -38,14 +36,8 @@ export default function Login() {
         hasCleared.current = true;
         sessionCleared = true;
         
-        // 1. Cerrar sesión de Supabase completamente
         await supabase.auth.signOut({ scope: 'global' });
         
-        // 2. Limpiar cualquier dato en caché
-        // Si tienes AsyncStorage u otro storage, límpialo aquí
-        // Ejemplo: await AsyncStorage.clear();
-        
-        // 3. Limpiar estados locales
         setEmail("");
         setPassword("");
         setShowPassword(false);
@@ -53,14 +45,13 @@ export default function Login() {
         console.log("✓ Memoria y sesión limpiadas completamente (primera vez)");
       } catch (error) {
         console.warn("Error limpiando memoria:", error);
-        // Continuar de todos modos
       } finally {
         setClearingSession(false);
       }
     };
 
     clearAllMemory();
-  }, []); // Solo se ejecuta una vez al montar
+  }, []);
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
@@ -77,8 +68,9 @@ export default function Login() {
         return;
       }
 
-      console.log("🔐 Intentando iniciar sesión con:", email.trim());
+      console.log("🔐 Validando credenciales para:", email.trim());
       
+      // Paso 1: Iniciar sesión para validar credenciales
       const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
@@ -103,55 +95,49 @@ export default function Login() {
       }
 
       if (data?.user) {
-        console.log("✅ Login exitoso:", data.user.email);
-        // Forzar navegación al Root (tabs principales)
-        setTimeout(() => {
-          nav.reset({
-            index: 0,
-            routes: [{ name: 'Root' }],
-          });
-        }, 100);
+        console.log("✅ Credenciales válidas para:", data.user.email);
+        
+        // Paso 2: Cerrar la sesión temporal
+        await supabase.auth.signOut();
+        
+        // Paso 3: Solicitar OTP
+        console.log("📧 Solicitando código OTP...");
+        const { error: otpError } = await supabase.auth.signInWithOtp({
+          email: email.trim(),
+          options: {
+            shouldCreateUser: false, // No crear usuario si no existe
+          }
+        });
+
+        if (otpError) {
+          console.error("❌ Error al enviar OTP:", otpError);
+          Alert.alert("Error", "No se pudo enviar el código de verificación.");
+          return;
+        }
+
+        console.log("✅ Código OTP enviado");
+        Alert.alert(
+          "Código enviado",
+          "Revisa tu correo para obtener el código de verificación.",
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                // Navegar a la pantalla de confirmación OTP
+                nav.navigate("Confirmacion", { email: email.trim() });
+              }
+            }
+          ]
+        );
       }
       
     } catch (e: any) {
       console.error("❌ Excepción en login:", e);
-      const msg = (e?.message || "").toLowerCase();
-      if (msg.includes("invalid login") || msg.includes("invalid_grant")) {
-        Alert.alert("Credenciales inválidas", "Revisa tu correo y contraseña.");
-      } else {
-        Alert.alert("Error al iniciar sesión", e?.message ?? "Intenta de nuevo.");
-      }
+      Alert.alert("Error", e?.message ?? "Ocurrió un error inesperado.");
     } finally {
       setLoading(false);
     }
   };
-
-  // Login dummy para desarrollo
-  const onDummyLogin = async () => {
-    setLoading(true);
-    // Simular delay de red
-    setTimeout(() => {
-      setLoading(false);
-      nav.navigate("Root");
-    }, 1000);
-  };
-
-  // reset password (incoming)
-  // const onForgot = async () => {
-  //   if (!email) return Alert.alert("Recuperar contraseña", "Ingresa tu correo primero.");
-  //   const redirectTo = Linking.createURL("/auth-callback");
-  //   const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-  //     redirectTo,
-  //   });
-  //   if (error) {
-  //     Alert.alert("No se pudo enviar el correo", error.message);
-  //   } else {
-  //     Alert.alert(
-  //       "Revisa tu correo",
-  //       "Te enviamos un enlace para restablecer tu contraseña."
-  //     );
-  //   }
-  // };
 
   // Mostrar indicador mientras se limpia la sesión
   if (clearingSession) {
