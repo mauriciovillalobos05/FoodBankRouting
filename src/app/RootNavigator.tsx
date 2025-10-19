@@ -5,6 +5,7 @@ import AdminStack from '../layouts/AdminStack';
 import Login from '../screens/auth/Login';
 import Verify from '../screens/auth/Verify';
 import Profile from '../screens/staff/tabs/Profile';
+import RouteDetails from '@/screens/admin/admin_functions/routes/RouteDetails';
 import { useAuth } from '../features/auth/useAuth';
 import { useRole } from '../features/auth/useRole';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
@@ -14,6 +15,7 @@ type RootStackParamList = {
   Staff: undefined;
   Admin: undefined;
   Profile: undefined;
+  RouteDetails: { routeId: string; routeName: string }; // ← Agregar tipo
 };
 
 type AuthStackParamList = {
@@ -54,6 +56,7 @@ export default function RootNavigator() {
     return (
       <RootStack.Navigator screenOptions={{ headerShown: false }}>
         <RootStack.Screen name="Staff" component={StaffTabs} />
+        <RootStack.Screen name="RouteDetails" component={RouteDetails} />
       </RootStack.Navigator>
     );
   }
@@ -69,6 +72,11 @@ export default function RootNavigator() {
             <RootStack.Screen name="Staff" component={StaffTabs} />
           )}
           <RootStack.Screen name="Profile" component={Profile} />
+          <RootStack.Screen 
+            name="RouteDetails" 
+            component={RouteDetails}
+            options={{ headerShown: false }}
+          />
         </>
       )}
     </RootStack.Navigator>

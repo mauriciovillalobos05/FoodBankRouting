@@ -1,7 +1,20 @@
-import { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, Alert, ActivityIndicator, Image, StyleSheet } from "react-native";
+import { useEffect, useState, useRef } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+  Image,
+  StyleSheet
+} from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { useAuth } from "@/services/AuthContext";
+import { supabase } from "@/services/supabase";
+import * as Linking from "expo-linking";
+
+// Variable global para controlar si ya se limpió la sesión
+let sessionCleared = false;
 
 export default function Login() {
   const nav = useNavigation<any>();
@@ -9,88 +22,213 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const { login } = useAuth();
+  const [clearingSession, setClearingSession] = useState(false);
+  const hasCleared = useRef(false);
 
-  const togglePasswordVisibility = () => setShowPassword(!showPassword);
+  // Limpiar toda la memoria y sesión SOLO la primera vez que se monta
+  useEffect(() => {
+    const clearAllMemory = async () => {
+      // Si ya se limpió en esta instancia del componente o globalmente, no hacerlo de nuevo
+      if (hasCleared.current || sessionCleared) {
+        return;
+      }
+
+      try {
+        setClearingSession(true);
+        hasCleared.current = true;
+        sessionCleared = true;
+        
+        // 1. Cerrar sesión de Supabase completamente
+        await supabase.auth.signOut({ scope: 'global' });
+        
+        // 2. Limpiar cualquier dato en caché
+        // Si tienes AsyncStorage u otro storage, límpialo aquí
+        // Ejemplo: await AsyncStorage.clear();
+        
+        // 3. Limpiar estados locales
+        setEmail("");
+        setPassword("");
+        setShowPassword(false);
+        
+        console.log("✓ Memoria y sesión limpiadas completamente (primera vez)");
+      } catch (error) {
+        console.warn("Error limpiando memoria:", error);
+        // Continuar de todos modos
+      } finally {
+        setClearingSession(false);
+      }
+    };
+
+    clearAllMemory();
+  }, []); // Solo se ejecuta una vez al montar
+
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
 
   const onLogin = async () => {
-    if (!email.trim()) return Alert.alert("Atención", "Ingresa tu correo");
-    if (!password) return Alert.alert("Atención", "Ingresa tu contraseña");
-
     try {
       setLoading(true);
-      console.log('🔐 Login: iniciando login para', email);
       
-      // ✅ CRÍTICO: login() ya actualiza el rol en AuthContext
-      await login(email, password);
-      
-      console.log('✅ Login: login exitoso, navegando a Root...');
-      
-      // ✅ Navegar inmediatamente después del login exitoso
-      // No necesitas esperar porque AuthContext ya tiene el rol actualizado
-      nav.reset({ 
-        index: 0,
-        routes: [{ name: "Root" }] 
-      });
+      // Validar campos
+      if (!email.trim() || !password) {
+        Alert.alert("Campos requeridos", "Por favor ingresa tu correo y contraseña.");
+        setLoading(false);
+        return;
+      }
 
-    } catch (e: any) {
-      console.warn('❌ Login error:', e);
-      const msg = e?.message?.toLowerCase() || '';
+      console.log("🔐 Intentando iniciar sesión con:", email.trim());
       
-      if (msg.includes('invalid login') || msg.includes('invalid_grant')) {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      
+      if (error) {
+        console.error("❌ Error de login:", error);
+        const msg = (error.message || "").toLowerCase();
+        if (msg.includes("confirm")) {
+          Alert.alert(
+            "Confirma tu correo",
+            "Abre el enlace del email y luego vuelve a iniciar sesión."
+          );
+          return;
+        }
+        if (msg.includes("invalid login") || msg.includes("invalid_grant") || msg.includes("invalid credentials")) {
+          Alert.alert("Credenciales inválidas", "Revisa tu correo y contraseña.");
+        } else {
+          Alert.alert("Error al iniciar sesión", error.message ?? "Intenta de nuevo.");
+        }
+        return;
+      }
+
+      if (data?.user) {
+        console.log("✅ Login exitoso:", data.user.email);
+        // Forzar navegación al Root (tabs principales)
+        setTimeout(() => {
+          nav.reset({
+            index: 0,
+            routes: [{ name: 'Root' }],
+          });
+        }, 100);
+      }
+      
+    } catch (e: any) {
+      console.error("❌ Excepción en login:", e);
+      const msg = (e?.message || "").toLowerCase();
+      if (msg.includes("invalid login") || msg.includes("invalid_grant")) {
         Alert.alert("Credenciales inválidas", "Revisa tu correo y contraseña.");
-      } else if (msg.includes('confirm')) {
-        Alert.alert(
-          "Confirma tu correo",
-          "Abre el enlace del email y luego vuelve a iniciar sesión."
-        );
       } else {
-        Alert.alert("Error al iniciar sesión", "Intenta de nuevo");
+        Alert.alert("Error al iniciar sesión", e?.message ?? "Intenta de nuevo.");
       }
     } finally {
       setLoading(false);
     }
   };
 
+  // Login dummy para desarrollo
+  const onDummyLogin = async () => {
+    setLoading(true);
+    // Simular delay de red
+    setTimeout(() => {
+      setLoading(false);
+      nav.navigate("Root");
+    }, 1000);
+  };
+
+  // reset password (incoming)
+  // const onForgot = async () => {
+  //   if (!email) return Alert.alert("Recuperar contraseña", "Ingresa tu correo primero.");
+  //   const redirectTo = Linking.createURL("/auth-callback");
+  //   const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+  //     redirectTo,
+  //   });
+  //   if (error) {
+  //     Alert.alert("No se pudo enviar el correo", error.message);
+  //   } else {
+  //     Alert.alert(
+  //       "Revisa tu correo",
+  //       "Te enviamos un enlace para restablecer tu contraseña."
+  //     );
+  //   }
+  // };
+
+  // Mostrar indicador mientras se limpia la sesión
+  if (clearingSession) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <Image 
+          source={require('../../assets/full_logo_bda.png')} 
+          style={styles.logoImage}
+          resizeMode="contain"
+        />
+        <ActivityIndicator size="large" color="#CE0E2D" style={{ marginTop: 20 }} />
+        <Text style={styles.clearingText}>Iniciando...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.logoContainer}>
         <Image 
           source={require('../../assets/full_logo_bda.png')} 
-          style={styles.logoImage} 
-          resizeMode="contain" 
+          style={styles.logoImage}
+          resizeMode="contain"
         />
       </View>
 
       <View style={styles.formContainer}>
         <Text style={styles.title}>Inicia sesión</Text>
 
-        <TextInput 
-          placeholder="Correo" 
-          placeholderTextColor={styles.placeholder.color} 
-          autoCapitalize="none" 
+        <TextInput
+          placeholder="Correo"
+          placeholderTextColor={styles.placeholder.color}
+          autoCapitalize="none"
           keyboardType="email-address"
-          value={email} 
-          onChangeText={setEmail} 
-          style={styles.input} 
-          textContentType="emailAddress" 
-          autoComplete="email" 
+          value={email}
+          onChangeText={setEmail}
+          style={styles.input}
+          editable={!loading}
         />
+        
+        <View style={styles.passwordContainer}>
+          <TextInput
+            placeholder="Contraseña"
+            placeholderTextColor={styles.placeholder.color}
+            secureTextEntry={!showPassword}
+            value={password}
+            onChangeText={setPassword}
+            style={styles.passwordInput}
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="password"
+            textContentType="password"
+            keyboardType="default"
+            importantForAutofill="no"
+            editable={!loading}
+          />
+          <TouchableOpacity 
+            style={styles.eyeButton}
+            onPress={togglePasswordVisibility}
+            disabled={loading}
+          >
+            {showPassword ? 
+              <Image 
+                source={require("../../assets/logo_bda.png")}
+                style={[styles.eyeImage, { opacity: 1 }]}
+              /> : 
+              <Image 
+                source={require("../../assets/logo_off_bda.png")}
+                style={[styles.eyeImage, { opacity: 0.5 }]}
+              />
+            }
+          </TouchableOpacity>
+        </View>
 
-        <TextInput 
-          placeholder="Contraseña" 
-          placeholderTextColor={styles.placeholder.color} 
-          secureTextEntry={!showPassword}
-          value={password} 
-          onChangeText={setPassword} 
-          style={styles.input} 
-          textContentType="password" 
-          autoComplete="password" 
-        />
-
-        <TouchableOpacity 
-          onPress={onLogin} 
-          disabled={loading} 
+        <TouchableOpacity
+          onPress={onLogin}
+          disabled={loading}
           style={styles.loginButton}
         >
           {loading ? (
@@ -114,75 +252,115 @@ export default function Login() {
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: '#FFFFFF', 
-    justifyContent: 'center', 
-    paddingHorizontal: 24 
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
   },
-  logoContainer: { 
-    alignItems: 'center', 
-    marginBottom: 40 
+  centerContent: {
+    alignItems: 'center',
   },
-  logoImage: { 
-    width: 250, 
-    height: 170, 
-    shadowColor: '#5C5C60', 
-    shadowOffset: { width: 0, height: 2 }, 
-    shadowOpacity: 0.1, 
-    shadowRadius: 3.84, 
-    elevation: 5 
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 40,
   },
-  formContainer: { 
-    gap: 16 
+  logoImage: {
+    width: 250,
+    height: 170,
+    shadowColor: '#5C5C60',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-  title: { 
-    fontSize: 32, 
-    fontWeight: 'bold', 
-    color: '#CE0E2D', 
-    textAlign: 'center', 
-    marginBottom: 8 
+  formContainer: {
+    gap: 16,
   },
-  input: { 
-    borderWidth: 2, 
-    borderColor: '#5C5C60', 
-    borderRadius: 12, 
-    padding: 16, 
-    fontSize: 16, 
-    backgroundColor: '#FFFFFF', 
-    color: '#5C5C60' 
+  title: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#CE0E2D',
+    textAlign: 'center',
+    marginBottom: 8,
   },
-  placeholder: { 
-    color: '#5C5C60' 
+  input: {
+    borderWidth: 2,
+    borderColor: '#5C5C60',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    backgroundColor: '#FFFFFF',
+    color: '#5C5C60',
   },
-  loginButton: { 
-    backgroundColor: '#00953B', 
-    padding: 16, 
-    borderRadius: 12, 
-    alignItems: 'center', 
-    marginTop: 8, 
-    shadowColor: '#00953B', 
-    shadowOffset: { width: 0, height: 2 }, 
-    shadowOpacity: 0.25, 
-    shadowRadius: 3.84, 
-    elevation: 5 
+  placeholder: {
+    color: '#5C5C60',
   },
-  buttonText: { 
-    color: '#FFFFFF', 
-    fontWeight: '600', 
-    fontSize: 16 
+  loginButton: {
+    backgroundColor: '#00953B',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 8,
+    shadowColor: '#00953B',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-  forgotPasswordContainer: { 
-    marginTop: 16 
+  buttonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 16,
   },
-  forgotPasswordText: { 
-    textAlign: 'center', 
-    color: '#000000', 
-    fontSize: 14, 
-    lineHeight: 20 
+  forgotPasswordContainer: {
+    marginTop: 16,
   },
-  contactAdminText: { 
-    color: '#CE0E2D', 
-    fontWeight: '600' 
+  forgotPasswordText: {
+    textAlign: 'center',
+    color: '#000000',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  contactAdminText: {
+    color: '#CE0E2D',
+    fontWeight: '600',
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#5C5C60',
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+  },
+  passwordInput: {
+    flex: 1,
+    padding: 16,
+    fontSize: 16,
+    color: '#5C5C60',
+  },
+  eyeButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  eyeImage: {
+    width: 24,
+    height: 24,
+    resizeMode: 'contain',
+  },
+  clearingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#5C5C60',
+    fontWeight: '500',
   },
 });

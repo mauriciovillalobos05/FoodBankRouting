@@ -291,15 +291,6 @@ export default function RouteDetails({ route, navigation }: Props) {
           </>
         )}
       </View>
-
-      {/* Botón */}
-      <TouchableOpacity
-        style={styles.selectButton}
-        onPress={handleBackToHome}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.selectButtonText}>Volver a Panel Principal</Text>
-      </TouchableOpacity>
     </ScrollView>
   );
 }

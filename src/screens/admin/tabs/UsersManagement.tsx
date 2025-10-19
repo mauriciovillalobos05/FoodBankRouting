@@ -20,9 +20,9 @@ const UsersManagement = ({ navigation }: any) => {
         <View style={styles.actionButtonsContainer}>
           <TouchableOpacity 
             style={styles.actionButton}
-            onPress={() => navigation.navigate('StaffManagement')}
+            onPress={() => navigation.navigate('RouteManagement')}
           >
-            <Text style={styles.actionButtonText}>Administrar Staff</Text>
+            <Text style={styles.actionButtonText}>Administrar Rutas</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 

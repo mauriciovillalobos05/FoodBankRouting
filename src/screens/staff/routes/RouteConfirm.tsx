@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, TextInput, ActivityIndicator, Alert, Dimensions } from 'react-native';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import CryptoJS from 'crypto-js';
@@ -22,6 +23,16 @@ interface Evidence {
   uploaded_at: string | null;
 }
 
+interface RouteStop {
+  id: string;
+  route_id: string;
+  name: string;
+  address?: string;
+  latitude: number;
+  longitude: number;
+  stop_order?: number;
+}
+
 export default function RouteConfirm({ route, navigation }: Props) {
   const { id, location } = route.params || {};
   const status = (route.params as any)?.status as Status;
@@ -39,8 +50,58 @@ export default function RouteConfirm({ route, navigation }: Props) {
   const [evidences, setEvidences] = useState<Evidence[]>([]);
   const [loadingEvidences, setLoadingEvidences] = useState(false);
   const [evidenceImages, setEvidenceImages] = useState<{ [key: string]: string }>({});
+  const [routeStops, setRouteStops] = useState<RouteStop[]>([]);
+  const [loadingStops, setLoadingStops] = useState(false);
+
+  const windowHeight = Dimensions.get('window').height;
+
+  // Map state
+  const [mapRegion, setMapRegion] = useState({
+    latitude: 20.6597,
+    longitude: -103.3496,
+    latitudeDelta: 0.1,
+    longitudeDelta: 0.1,
+  });
 
   const CLIENT_SIDE_ENCRYPTION_KEY = process.env.EXPO_PUBLIC_CLIENT_ENCRYPTION_KEY || 'demo-client-key-please-change';
+
+  // Load route stops
+  useEffect(() => {
+    let mounted = true;
+    if (!id) return;
+
+    (async () => {
+      try {
+        setLoadingStops(true);
+        const { data, error } = await supabase
+          .from('route_stops')
+          .select('id, route_id, name, address, latitude, longitude, stop_order')
+          .eq('route_id', id)
+          .order('stop_order', { ascending: true });
+
+        if (error) {
+          console.warn('Error loading stops:', error);
+        } else if (mounted && data) {
+          setRouteStops(data);
+
+          // Center map on first stop
+          if (data.length > 0) {
+            setMapRegion({
+              latitude: data[0].latitude,
+              longitude: data[0].longitude,
+              latitudeDelta: 0.05,
+              longitudeDelta: 0.05,
+            });
+          }
+        }
+      } catch (e) {
+        console.warn('Exception loading stops:', e);
+      } finally {
+        if (mounted) setLoadingStops(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [id]);
 
   // Load evidences for finalized routes
   const loadEvidences = React.useCallback(async () => {
@@ -393,6 +454,35 @@ export default function RouteConfirm({ route, navigation }: Props) {
               : 'Ruta'}
       </Text>
 
+      {/* Mapa con marcadores */}
+      {routeStops.length > 0 && (
+        <View style={[styles.mapContainer, { height: windowHeight * 0.35 }]}>
+          <MapView
+            provider={PROVIDER_GOOGLE}
+            style={styles.map}
+            region={mapRegion}
+            onRegionChangeComplete={setMapRegion}
+          >
+            {routeStops.map((stop, index) => (
+              <Marker
+                key={stop.id}
+                coordinate={{
+                  latitude: stop.latitude,
+                  longitude: stop.longitude,
+                }}
+                title={stop.name}
+                description={stop.address}
+                pinColor="#FF6B35"
+              >
+                <View style={styles.customMarker}>
+                  <Text style={styles.markerText}>{index + 1}</Text>
+                </View>
+              </Marker>
+            ))}
+          </MapView>
+        </View>
+      )}
+
       {/* Descripción de la ruta */}
       {routeDescription && (
         <View style={styles.descriptionCard}>
@@ -581,6 +671,42 @@ const styles = StyleSheet.create({
     color: '#222',
     marginBottom: 16,
     paddingHorizontal: 4,
+  },
+  mapContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    overflow: 'hidden',
+    width: '100%',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  map: {
+    width: '100%',
+    height: '100%',
+  },
+  customMarker: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#FF6B35',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  markerText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 14,
   },
   descriptionCard: {
     backgroundColor: '#FFFFFF',
