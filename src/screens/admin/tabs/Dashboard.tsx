@@ -15,6 +15,8 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 type RootStackParamList = {
   RouteDetails: { routeId: string; routeName: string };
+  RouteForm: undefined;
+  RouteManagement: undefined;
 };
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
@@ -33,7 +35,7 @@ interface RouteWithStatus extends Route {
   status: 'Pendiente' | 'En curso' | 'Finalizada';
 }
 
-const Home = () => {
+const Dashboard = () => {
   const navigation = useNavigation<NavigationProp>();
   
   const [loading, setLoading] = useState(true);
@@ -56,7 +58,6 @@ const Home = () => {
       const { data: allRoutes, error: routesError } = await supabase
         .from('routes')
         .select('*')
-        .order('route_date', { ascending: false })
         .order('created_at', { ascending: false });
 
       if (routesError) {
@@ -90,16 +91,11 @@ const Home = () => {
 
         let status: 'Pendiente' | 'En curso' | 'Finalizada';
         
-        // Prioridad: primero verificar si está finalizada
         if (hasEndTime) {
           status = 'Finalizada';
-        } 
-        // Luego verificar si tiene staff asignado (en curso)
-        else if (hasStaff) {
+        } else if (hasStaff) {
           status = 'En curso';
-        } 
-        // Si no tiene ni staff ni hora de fin, está pendiente
-        else {
+        } else {
           status = 'Pendiente';
         }
 
@@ -207,12 +203,20 @@ const Home = () => {
   const rutasEnCurso = routes.filter(r => r.status === 'En curso');
   const rutasFinalizadas = routes.filter(r => r.status === 'Finalizada');
 
+  const handleAgregarRuta = () => {
+    navigation.navigate('RouteForm');
+  };
+
+  const handleAdministrarRutas = () => {
+    navigation.navigate('RouteManagement');
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Panel Staff - Banco de Alimentos</Text>
+          <Text style={styles.headerTitle}>Panel Admin - Banco de Alimentos</Text>
         </View>
 
         {/* Stats Cards */}
@@ -234,6 +238,25 @@ const Home = () => {
               '#FFF3E0'
             )}
           </View>
+        </View>
+
+        {/* Action Buttons */}
+        <View style={styles.actionButtonsContainer}>
+          <TouchableOpacity 
+            style={styles.primaryActionButton}
+            onPress={handleAgregarRuta}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.primaryActionButtonText}>+ Agregar ruta</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.secondaryActionButton}
+            onPress={handleAdministrarRutas}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.secondaryActionButtonText}>Administrar rutas</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Loading State */}
@@ -450,6 +473,53 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#999',
   },
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  primaryActionButton: {
+    flex: 1,
+    backgroundColor: '#5050FF',
+    paddingVertical: 14,
+    borderRadius: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  primaryActionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  secondaryActionButton: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 14,
+    borderRadius: 24,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#5050FF',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  secondaryActionButtonText: {
+    color: '#5050FF',
+    fontSize: 15,
+    fontWeight: '600',
+  },
 });
 
-export default Home;
+export default Dashboard;

@@ -22,7 +22,7 @@ const UsersManagement = ({ navigation }: any) => {
             style={styles.actionButton}
             onPress={() => navigation.navigate('RouteManagement')}
           >
-            <Text style={styles.actionButtonText}>Administrar Rutas</Text>
+            <Text style={styles.actionButtonText}>Administrar Staff</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
