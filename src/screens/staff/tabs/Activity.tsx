@@ -10,7 +10,9 @@ import {
   RefreshControl
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { supabase, safeLogError } from '@/services/supabase';
+import { colors } from '@/theme/colors';
 import { cacheActivityData, getCachedActivityData } from '@/services/routesCache';
 
 // Import Route type from the shared location
@@ -25,6 +27,8 @@ const Activity = () => {
   useEffect(() => {
     loadActivityData();
   }, []);
+
+  const navigation = useNavigation<any>();
 
   const loadActivityData = async () => {
     try {
@@ -95,12 +99,23 @@ const Activity = () => {
       }
 
       // Handle both array and single object cases for 'routes'
+      // Preserve participant id when flattening routes so we can navigate with participant context
       const flattened: Route[] = ((routeParticipants as RouteParticipant[]) || [])
         .flatMap((rp: RouteParticipant) => {
           if (Array.isArray(rp.routes)) {
-            return rp.routes.filter((r): r is Route => r != null);
+            return rp.routes
+              .filter((r): r is Route => r != null)
+              .map((r) => {
+                const status = r.end_time ? 'Finalizada' : r.start_time ? 'En curso' : 'Pendiente';
+                return ({ ...r, participant_id: rp.id, status } as Route);
+              });
           }
-          return rp.routes ? [rp.routes] : [];
+          if (rp.routes) {
+            const r = rp.routes as Route;
+            const status = r.end_time ? 'Finalizada' : r.start_time ? 'En curso' : 'Pendiente';
+            return [{ ...r, participant_id: rp.id, status } as Route];
+          }
+          return [];
         });
 
       setRoutes(flattened);
@@ -166,6 +181,9 @@ const Activity = () => {
     });
   };
 
+  // Helper to remove duplicate routes by id, keeping first occurrence
+  const uniqueById = (arr: Route[]) => Array.from(new Map(arr.map(r => [r.id, r])).values());
+
   const renderEmptyCard = () => (
     <View style={styles.emptyCard}>
       <View style={styles.emptyIcon}>
@@ -179,7 +197,23 @@ const Activity = () => {
   );
 
   const renderRouteCard = (route: any) => (
-    <TouchableOpacity key={route.id} style={styles.routeCard} activeOpacity={0.8}>
+    <TouchableOpacity
+      key={route.id}
+      style={styles.routeCard}
+      activeOpacity={0.8}
+      onPress={() => {
+        // Navigate to nested Home stack -> RouteConfirm (same pattern used in Profile)
+        (navigation as any).navigate('Home', {
+          screen: 'RouteConfirm',
+          params: {
+            id: String(route.id),
+            location: route.name,
+            status: route.status,
+            participant_id: route.participant_id,
+          },
+        });
+      }}
+    >
       <View style={styles.routeHeader}>
         <Text style={styles.routeName}>{route.name || 'Sin nombre'}</Text>
         <Text style={styles.timeLabel}>
@@ -219,9 +253,9 @@ const Activity = () => {
 
         {loading ? (
           <View style={{ padding: 20, alignItems: 'center' }}>
-            <ActivityIndicator size="large" color="#5050FF" />
-            <Text style={styles.loadingText}>Cargando actividad...</Text>
-          </View>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.loadingText}>Cargando actividad...</Text>
+            </View>
         ) : error ? (
           <View style={{ padding: 20 }}>
             <Text style={{ color: 'red' }}>Error: {error}</Text>
@@ -234,7 +268,7 @@ const Activity = () => {
           {rutasActuales.length === 0 ? (
             renderEmptyCard()
           ) : (
-            rutasActuales.map(route => renderRouteCard(route))
+            uniqueById(rutasActuales).map(route => renderRouteCard(route))
           )}
         </View>
 
@@ -244,7 +278,7 @@ const Activity = () => {
           {rutasRecientes.length === 0 ? (
             renderEmptyCard()
           ) : (
-            rutasRecientes.map(route => renderRouteCard(route))
+            uniqueById(rutasRecientes).map(route => renderRouteCard(route))
           )}
         </View>
       </ScrollView>

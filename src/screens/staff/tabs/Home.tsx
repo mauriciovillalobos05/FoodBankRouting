@@ -313,8 +313,9 @@ const Home = () => {
       const rutasCompletadas = processed.filter(
         (r) => r.status === "Finalizada"
       ).length;
+      // Count as 'sin finalizar' any route that is not finalizada (Pendiente or En curso)
       const rutasSinFinalizar = processed.filter(
-        (r) => r.status === "En curso"
+        (r) => r.status !== "Finalizada"
       ).length;
 
       // Total rutas hoy = only today's routes that are en curso or finalizada
@@ -343,6 +344,68 @@ const Home = () => {
         stats: newStats,
         timestamp: Date.now(),
       });
+
+      // --- Ensure parity with Activity screen: also fetch route_participants
+      // and include any routes assigned to the current user that might be
+      // missing from the processed list above (e.g., due to different query filters).
+      try {
+        const { data: rpData, error: rpError } = await supabase
+          .from('route_participants')
+          .select(`
+            id,
+            user_id,
+            assigned_at,
+            routes ( id, name, description, route_date, start_time, end_time )
+          `)
+          .eq('user_id', user.id);
+
+        if (!rpError && Array.isArray(rpData)) {
+          const assignedRoutes: RouteWithStatus[] = rpData.flatMap((rp: any) => {
+            const r = rp.routes;
+            if (!r) return [];
+            const status = r.end_time ? 'Finalizada' : r.start_time ? 'En curso' : 'Pendiente';
+            return [{
+              id: r.id,
+              name: r.name,
+              description: r.description,
+              route_date: r.route_date,
+              start_time: r.start_time || undefined,
+              end_time: r.end_time || undefined,
+              status,
+              participants: [
+                { id: rp.id, user_id: rp.user_id, assigned_at: rp.assigned_at }
+              ],
+            } as RouteWithStatus];
+          });
+
+          if (assignedRoutes.length > 0) {
+            // merge into processed, keeping unique by id (prefer processed entries)
+            const map = new Map<string, RouteWithStatus>();
+            processed.forEach((p) => map.set(String(p.id), p));
+            assignedRoutes.forEach((ar) => {
+              if (!map.has(String(ar.id))) map.set(String(ar.id), ar);
+            });
+            const merged = Array.from(map.values());
+            // Update routes and recompute stats based on the merged dataset so counters stay accurate
+            setAllRoutes(merged);
+            const rutasCompletadasMerged = merged.filter((r) => r.status === 'Finalizada').length;
+            const rutasSinFinalizarMerged = merged.filter((r) => r.status !== 'Finalizada').length;
+            const todayRoutesMerged = merged.filter((r) => r.route_date === today);
+            const totalRutasHoyMerged = todayRoutesMerged.filter((r) => r.status === 'En curso' || r.status === 'Finalizada').length;
+            const mergedStats = {
+              totalRutasHoy: totalRutasHoyMerged,
+              rutasCompletadas: rutasCompletadasMerged,
+              rutasSinFinalizar: rutasSinFinalizarMerged,
+            };
+            setStats(mergedStats);
+            // update cache with merged results and recomputed stats
+            await cacheRoutesData({ routes: merged, stats: mergedStats, timestamp: Date.now() });
+          }
+        }
+      } catch (err) {
+        // don't fail the whole flow if this auxiliary step errors
+        console.warn('Could not merge assigned routes from route_participants:', err);
+      }
     } catch (error) {
       safeLogError("Error in fetchRoutesData", error);
       console.error("Full error:", error);

@@ -112,7 +112,11 @@ const Profile = () => {
           ];
         }) || [];
 
-      setUserRoutes(processedRoutes);
+      // Remove duplicates by route.id, keep first occurrence
+      const uniqueById = (arr: Route[]) => Array.from(new Map(arr.map(r => [r.id, r])).values());
+      const uniqueRoutes = uniqueById(processedRoutes);
+
+      setUserRoutes(uniqueRoutes);
     } catch (error) {
       safeLogError("Error fetching user profile or routes", error);
     } finally {
@@ -158,7 +162,7 @@ const Profile = () => {
       <View style={styles.routesContainer}>
         {userRoutes.map((route) => (
           <TouchableOpacity
-            key={route.id}
+            key={`${route.id}-${route.participant_id || 'na'}`}
             style={styles.routeCard}
             onPress={() => goToRouteConfirm(route)}
           >

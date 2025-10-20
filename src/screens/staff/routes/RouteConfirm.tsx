@@ -269,17 +269,38 @@ export default function RouteConfirm({ route, navigation }: Props) {
         console.warn('Could not resolve current user for evidence metadata', e);
       }
 
+      // First, attempt to update the route end_time so other screens see it as finalized
+      let updatedOk = false;
+      try {
+        if (id) {
+          const now = new Date();
+          const hh = String(now.getHours()).padStart(2, '0');
+          const mm = String(now.getMinutes()).padStart(2, '0');
+          const ss = String(now.getSeconds()).padStart(2, '0');
+          const nowTime = `${hh}:${mm}:${ss}`; // keep HH:MM:SS format used across app
+          const { error: updateError } = await supabase.from('routes').update({ end_time: nowTime }).eq('id', String(id));
+          if (updateError) {
+            console.warn('Could not update route end_time', updateError);
+          } else {
+            updatedOk = true;
+          }
+        }
+      } catch (e) {
+        console.warn('Error setting route end_time', e);
+      }
+
       try {
         const { error } = await supabase.from('evidences').insert([payload]);
         if (error) {
           console.warn('Could not insert evidence metadata', error);
           Alert.alert(
-            'Advertencia', 
+            'Advertencia',
             'No se pudo guardar la metadata, pero la evidencia puede estar subida. Se procederá a finalizar la ruta.',
             [
               {
                 text: 'OK',
                 onPress: () => {
+                  // navigate back and ask home to refresh
                   (navigation as any).navigate('HomeMain', { refresh: Date.now() });
                 }
               }
@@ -287,8 +308,9 @@ export default function RouteConfirm({ route, navigation }: Props) {
           );
           return;
         } else {
+          // Evidence inserted successfully. Now navigate back — route already updated above (if succeeded).
           Alert.alert(
-            'Ruta finalizada', 
+            'Ruta finalizada',
             'Notas y evidencias registradas.',
             [
               {
@@ -302,22 +324,10 @@ export default function RouteConfirm({ route, navigation }: Props) {
         }
       } catch (e) {
         console.warn('evidences insert exception, continuing to finalize', e);
-      }
-
-      try {
-        if (id) {
-          const now = new Date();
-          const hh = String(now.getHours()).padStart(2, '0');
-          const mm = String(now.getMinutes()).padStart(2, '0');
-          const ss = String(now.getSeconds()).padStart(2, '0');
-          const nowTime = `${hh}:${mm}:${ss}`;
-          const { error: updateError } = await supabase.from('routes').update({ end_time: nowTime }).eq('id', String(id));
-          if (updateError) {
-            console.warn('Could not update route end_time', updateError);
-          }
-        }
-      } catch (e) {
-        console.warn('Error setting route end_time', e);
+        // If evidence insert throws, still navigate back but warn the user
+        Alert.alert('Ruta finalizada', 'La ruta fue marcada como finalizada, pero hubo un problema guardando evidencias.', [
+          { text: 'OK', onPress: () => (navigation as any).navigate('HomeMain', { refresh: Date.now() }) }
+        ]);
       }
     } catch (err) {
       console.error('finalizeRoute error', err);
