@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase, safeLogError } from "@/services/supabase";
+import { colors } from '@/theme/colors';
 import {
   cacheRoutesData,
   getCachedRoutesData,
@@ -403,13 +404,13 @@ const Home = () => {
     const getStatusColor = (status: string) => {
       switch (status) {
         case "Pendiente":
-          return "#5C5C60";
+          return colors.neutral;
         case "En curso":
-          return "#F5A800";
+          return colors.warning;
         case "Finalizada":
-          return "#00953B";
+          return colors.success;
         default:
-          return "#5C5C60";
+          return colors.neutral;
       }
     };
 
@@ -527,12 +528,12 @@ const Home = () => {
             {renderStatsCard(
               "Rutas completadas",
               stats.rutasCompletadas,
-              "#E8F5E8"
+              colors.accent
             )}
             {renderStatsCard(
               "Rutas sin finalizar",
               stats.rutasSinFinalizar,
-              "#FFF3E0"
+              colors.accent
             )}
           </View>
         </View>
@@ -565,7 +566,7 @@ const styles = StyleSheet.create({
   },
   statsContainer: { marginBottom: 24 },
   mainStatsCard: {
-    backgroundColor: "#E8E3FF",
+    backgroundColor: colors.primary,
     borderRadius: 12,
     padding: 20,
     marginBottom: 16,
@@ -573,7 +574,7 @@ const styles = StyleSheet.create({
   },
   mainStatsTitle: {
     fontSize: 14,
-    color: "#5050FF",
+    color: "#000000",
     marginBottom: 8,
     fontWeight: "500",
   },
@@ -582,7 +583,7 @@ const styles = StyleSheet.create({
   statsCard: { flex: 1, borderRadius: 12, padding: 16, alignItems: "center" },
   statsTitle: {
     fontSize: 12,
-    color: "#5050FF",
+    color: "#000000",
     marginBottom: 8,
     fontWeight: "500",
     textAlign: "center",
@@ -607,8 +608,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   locationIcon: { width: 16, height: 16, marginRight: 6 },
-  routeLocation: { fontSize: 14, color: "#000000", fontWeight: "500" },
-  routeDescription: { fontSize: 13, color: "#5C5C60", marginBottom: 8 },
+  routeLocation: { fontSize: 14, color: colors.textPrimary, fontWeight: "500" },
+  routeDescription: { fontSize: 13, color: colors.textSecondary, marginBottom: 8 },
   routeTime: { fontSize: 12, color: "#666666", marginBottom: 12 },
   routeActions: {
     flexDirection: "row",
@@ -617,7 +618,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   detailsButton: {
-    backgroundColor: "#5050FF",
+    backgroundColor: colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
@@ -632,7 +633,7 @@ const styles = StyleSheet.create({
   },
   emptyText: { fontSize: 16, color: "#5C5C60", textAlign: "center" },
   startRouteButton: {
-    backgroundColor: "#00953B",
+    backgroundColor: colors.success,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,

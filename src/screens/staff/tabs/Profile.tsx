@@ -6,7 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  ActivityIndicator,
+  ActivityIndicator,  
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase, safeLogError } from "@/services/supabase";
@@ -208,7 +208,12 @@ const Profile = () => {
           <View style={styles.avatarContainer}>
             <View style={styles.avatarWrapper}>
               <View style={styles.avatar}>
-                <Text style={styles.avatarEmoji}>👤</Text>
+                <Text style={styles.avatarEmoji}>
+                  <Image
+                    source={require("../../../assets/profile_off_icon.png")}
+                    style={styles.avatar}
+                  />
+                </Text>
               </View>
               {loading ? (
                 <ActivityIndicator

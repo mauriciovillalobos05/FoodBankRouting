@@ -12,6 +12,7 @@ import {
 import { supabase } from '@/services/supabase';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { colors } from '@/theme/colors';
 
 type RootStackParamList = {
   RouteDetails: { routeId: string; routeName: string };
@@ -131,10 +132,11 @@ const Dashboard = () => {
     });
   };
 
-  const handleImprimirPDF = (route: RouteWithStatus) => {
-    // TODO: Implementar generación de PDF
-    alert(`Imprimir PDF para: ${route.name}`);
-  };
+  // INCOMING FUNCTION
+  // const handleImprimirPDF = (route: RouteWithStatus) => {
+  //   // TODO: Implementar generación de PDF
+  //   alert(`Imprimir PDF para: ${route.name}`);
+  // };
 
   const renderStatsCard = (title: string, value: number, color: string) => (
     <View style={[styles.statsCard, { backgroundColor: color }]}>
@@ -184,15 +186,6 @@ const Dashboard = () => {
           >
             <Text style={styles.detailsButtonText}>ver detalles</Text>
           </TouchableOpacity>
-          
-          {ruta.status === 'Finalizada' && (
-            <TouchableOpacity 
-              style={[styles.actionButton, { backgroundColor: '#00953B' }]}
-              onPress={() => handleImprimirPDF(ruta)}
-            >
-              <Text style={styles.actionButtonText}>Imprimir PDF</Text>
-            </TouchableOpacity>
-          )}
         </View>
       </View>
     );
@@ -334,7 +327,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   mainStatsCard: {
-    backgroundColor: '#E8E3FF',
+    backgroundColor: colors.primary,
     borderRadius: 12,
     padding: 20,
     marginBottom: 16,
@@ -342,7 +335,7 @@ const styles = StyleSheet.create({
   },
   mainStatsTitle: {
     fontSize: 14,
-    color: '#5050FF',
+    color: "#000000",
     marginBottom: 8,
     fontWeight: '500',
   },
@@ -364,7 +357,7 @@ const styles = StyleSheet.create({
   },
   statsTitle: {
     fontSize: 12,
-    color: '#5050FF',
+    color: "#000000",
     marginBottom: 8,
     fontWeight: '500',
     textAlign: 'center',
@@ -428,12 +421,12 @@ const styles = StyleSheet.create({
   },
   routeLocation: {
     fontSize: 14,
-    color: '#5C5C60',
+    color: colors.textPrimary,
     fontWeight: '500',
   },
   routeDescription: {
     fontSize: 13,
-    color: '#888',
+    color: colors.textSecondary,
     marginBottom: 12,
     lineHeight: 18,
   },
@@ -444,7 +437,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   detailsButton: {
-    backgroundColor: '#5050FF',
+    backgroundColor: colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
